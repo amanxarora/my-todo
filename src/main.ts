@@ -574,6 +574,8 @@ class TodoView extends ItemView {
 		const block = container.createDiv('category-block');
 		const catHdr = block.createDiv('category-header');
 		if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || '#8a5cf5')) + '60';
+		
+		catHdr.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showCategoryMenu(block, cat); };
 
 		const nameEl = catHdr.createEl('span', { cls: 'category-name', text: (cat.pinned ? '⭐ ' : '') + cat.name });
 		if (cat.color) nameEl.style.color = cat.color;
