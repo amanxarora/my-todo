@@ -612,9 +612,9 @@ ${taskList}
   showCategoryMenu(block, cat, e) {
     const menu = block.createDiv("cat-dropdown");
     if (e) {
-      menu.style.position = "fixed";
-      menu.style.top = e.clientY + "px";
-      menu.style.left = e.clientX + "px";
+      const rect = block.getBoundingClientRect();
+      menu.style.top = e.clientY - rect.top + "px";
+      menu.style.left = e.clientX - rect.left + "px";
       menu.style.right = "auto";
     }
     this.activeMenu = menu;
@@ -780,9 +780,9 @@ ${taskList}
     const menu = document.createElement("div");
     menu.className = "task-dropdown";
     if (e) {
-      menu.style.position = "fixed";
-      menu.style.top = e.clientY + "px";
-      menu.style.left = e.clientX + "px";
+      const rect = row.getBoundingClientRect();
+      menu.style.top = e.clientY - rect.top + "px";
+      menu.style.left = e.clientX - rect.left + "px";
       menu.style.right = "auto";
     } else {
       menu.style.top = "28px";
