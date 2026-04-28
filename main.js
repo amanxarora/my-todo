@@ -37,7 +37,8 @@ var DEFAULT_SETTINGS = {
   rolloverHour: 0,
   rolloverMinute: 0,
   archiveEnabled: false,
-  themeColor: "#8a5cf5"
+  themeColor: "#8a5cf5",
+  sortOrder: "manual"
 };
 var CATEGORY_COLORS = [
   { label: "Default", value: "" },
@@ -129,6 +130,16 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian.Setting(containerEl).setName("Category Sort Order").setDesc("How should your categories be ordered? You can also pin up to 2 categories to the top.").addDropdown(
+      (drop) => drop.addOption("manual", "Manual (Drag and Drop)").addOption("alpha-asc", "Alphabetical (A-Z)").addOption("alpha-desc", "Alphabetical (Z-A)").addOption("date-asc", "Date Created (Oldest First)").addOption("date-desc", "Date Created (Newest First)").setValue(this.plugin.settings.sortOrder).onChange(async (val) => {
+        this.plugin.settings.sortOrder = val;
+        await this.plugin.saveSettings();
+        this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
+          const view = v.view;
+          if (view?.render) view.render();
+        });
+      })
+    );
     containerEl.createEl("h3", { text: "Theme Color", attr: { style: 'margin-top:24px;margin-bottom:8px;font-family:"Century Gothic","AppleGothic","Trebuchet MS",sans-serif;' } });
     containerEl.createEl("p", { text: "Choose the accent color used throughout the plugin.", attr: { style: "color:var(--text-muted);font-size:13px;margin-bottom:12px;" } });
     const THEME_COLORS = [
@@ -196,7 +207,7 @@ var TodoView = class extends import_obsidian.ItemView {
   save() {
     this.plugin.data = this.data;
     this.updateScore();
-    this.plugin.saveData(this.data);
+    this.plugin.saveDataQueued(this.data);
   }
   // ─── Rollover ─────────────────────────────────────────────────────────────
   runDayRollover() {
@@ -314,7 +325,7 @@ var TodoView = class extends import_obsidian.ItemView {
     this.render();
   }
   addCategory(name) {
-    this.data.categories.push({ id: "cat-" + Date.now(), name, tasks: [] });
+    this.data.categories.push({ id: "cat-" + Date.now(), name, tasks: [], createdDate: todayIso() });
     this.updateTagsNote();
     this.save();
     this.render();
@@ -482,7 +493,13 @@ ${taskList}
     const section = root.createDiv("todo-section");
     section.createEl("h1", { cls: "todo-section-title", text: "Categories" });
     const grid = section.createDiv("categories-kanban");
-    this.data.categories.forEach((cat) => this.renderCategoryBlock(grid, cat));
+    let catsToRender = [...this.data.categories];
+    if (this.plugin.settings.sortOrder === "alpha-asc") catsToRender.sort((a, b) => a.name.localeCompare(b.name));
+    else if (this.plugin.settings.sortOrder === "alpha-desc") catsToRender.sort((a, b) => b.name.localeCompare(a.name));
+    else if (this.plugin.settings.sortOrder === "date-asc") catsToRender.sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
+    else if (this.plugin.settings.sortOrder === "date-desc") catsToRender.sort((a, b) => (b.createdDate || "").localeCompare(a.createdDate || ""));
+    catsToRender.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    catsToRender.forEach((cat) => this.renderCategoryBlock(grid, cat));
     const addArea = section.createDiv("add-category-area");
     const addRow = addArea.createDiv("add-category-row");
     const inputWrap = addRow.createDiv("add-category-input-wrap");
@@ -533,7 +550,7 @@ ${taskList}
     const block = container.createDiv("category-block");
     const catHdr = block.createDiv("category-header");
     if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || "#8a5cf5")) + "60";
-    const nameEl = catHdr.createEl("span", { cls: "category-name", text: cat.name });
+    const nameEl = catHdr.createEl("span", { cls: "category-name", text: (cat.pinned ? "\u2B50 " : "") + cat.name });
     if (cat.color) nameEl.style.color = cat.color;
     const tagEl = catHdr.createEl("span", { cls: "category-tag", text: catTag(cat.name, cat.customTag) });
     if (cat.color) {
@@ -589,17 +606,32 @@ ${taskList}
   showCategoryMenu(block, cat) {
     const menu = block.createDiv("cat-dropdown");
     this.activeMenu = menu;
-    const up = menu.createDiv("cat-dropdown-item");
-    up.setText("\u2191 Move up");
-    up.onclick = () => {
+    if (this.plugin.settings.sortOrder === "manual") {
+      const up = menu.createDiv("cat-dropdown-item");
+      up.setText("\u2191 Move up");
+      up.onclick = () => {
+        this.closeActiveMenu();
+        this.moveCategoryUp(cat.id);
+      };
+      const down = menu.createDiv("cat-dropdown-item");
+      down.setText("\u2193 Move down");
+      down.onclick = () => {
+        this.closeActiveMenu();
+        this.moveCategoryDown(cat.id);
+      };
+      menu.createDiv("cat-dropdown-divider");
+    }
+    const pin = menu.createDiv("cat-dropdown-item");
+    pin.setText(cat.pinned ? "Unpin category" : "\u2B50 Pin to top");
+    pin.onclick = () => {
       this.closeActiveMenu();
-      this.moveCategoryUp(cat.id);
-    };
-    const down = menu.createDiv("cat-dropdown-item");
-    down.setText("\u2193 Move down");
-    down.onclick = () => {
-      this.closeActiveMenu();
-      this.moveCategoryDown(cat.id);
+      if (!cat.pinned && this.data.categories.filter((c) => c.pinned).length >= 2) {
+        new import_obsidian.Notice("You can only pin up to 2 categories!");
+        return;
+      }
+      cat.pinned = !cat.pinned;
+      this.save();
+      this.render();
     };
     menu.createDiv("cat-dropdown-divider");
     const rename = menu.createDiv("cat-dropdown-item");
@@ -681,6 +713,12 @@ ${taskList}
     const overdue = this.getOverdueStatus(task);
     const row = container.createDiv(`todo-task${task.completed ? " completed" : ""}`);
     row.style.position = "relative";
+    row.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.closeActiveMenu();
+      this.showTaskMenu(row, task, context);
+    };
     const left = row.createDiv("task-left");
     const checkbox = left.createDiv(`task-checkbox${task.completed ? " checked" : ""}`);
     checkbox.onclick = () => this.toggleComplete(task.id);
@@ -832,6 +870,8 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
     super(...arguments);
     this.data = DEFAULT_DATA;
     this.settings = DEFAULT_SETTINGS;
+    this._savePromise = null;
+    this.lastSavedDataString = "";
   }
   async onload() {
     const saved = await this.loadData();
@@ -853,9 +893,39 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
         });
       })
     );
+    this.registerEvent(
+      this.app.vault.on("modify", async (file) => {
+        if (file.path === this.manifest.dir + "/data.json") {
+          const content = await this.app.vault.read(file);
+          if (content !== this.lastSavedDataString) {
+            const saved2 = JSON.parse(content);
+            this.data = { ...DEFAULT_DATA, ...saved2, categories: saved2?.categories ?? DEFAULT_DATA.categories, scores: saved2?.scores ?? [], lastRolloverDate: saved2?.lastRolloverDate ?? "" };
+            this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
+              const view = v.view;
+              if (view?.render) {
+                view.data = this.data;
+                view.render();
+              }
+            });
+          }
+        }
+      })
+    );
+  }
+  saveDataQueued(data) {
+    const saveCall = async () => {
+      this.lastSavedDataString = JSON.stringify(data);
+      await this.saveData(data);
+    };
+    if (!this._savePromise) {
+      this._savePromise = saveCall();
+    } else {
+      this._savePromise = this._savePromise.then(saveCall).catch(saveCall);
+    }
+    return this._savePromise;
   }
   async saveSettings() {
-    await this.saveData({ ...this.data, settings: this.settings });
+    await this.saveDataQueued({ ...this.data, settings: this.settings });
   }
   async onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);

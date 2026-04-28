@@ -20,6 +20,8 @@ interface Category {
 	name: string;
 	color?: string;
 	customTag?: string;
+	pinned?: boolean;
+	createdDate?: string;
 	tasks: Task[];
 }
 
@@ -41,6 +43,7 @@ interface TodoSettings {
 	rolloverMinute: number;
 	archiveEnabled: boolean;
 	themeColor: string;
+	sortOrder: 'manual' | 'alpha-asc' | 'alpha-desc' | 'date-asc' | 'date-desc';
 }
 
 const DEFAULT_DATA: TodoData = {
@@ -59,6 +62,7 @@ const DEFAULT_SETTINGS: TodoSettings = {
 	rolloverMinute: 0,
 	archiveEnabled: false,
 	themeColor: '#8a5cf5',
+	sortOrder: 'manual',
 };
 
 const CATEGORY_COLORS = [
@@ -176,6 +180,27 @@ class TodoSettingTab extends PluginSettingTab {
 				})
 			);
 
+		// Category Sorting
+		new Setting(containerEl)
+			.setName('Category Sort Order')
+			.setDesc('How should your categories be ordered? You can also pin up to 2 categories to the top.')
+			.addDropdown(drop => drop
+				.addOption('manual', 'Manual (Drag and Drop)')
+				.addOption('alpha-asc', 'Alphabetical (A-Z)')
+				.addOption('alpha-desc', 'Alphabetical (Z-A)')
+				.addOption('date-asc', 'Date Created (Oldest First)')
+				.addOption('date-desc', 'Date Created (Newest First)')
+				.setValue(this.plugin.settings.sortOrder)
+				.onChange(async (val: any) => {
+					this.plugin.settings.sortOrder = val;
+					await this.plugin.saveSettings();
+					this.plugin.app.workspace.getLeavesOfType('my-todo-view').forEach(v => {
+						const view = v.view as any;
+						if (view?.render) view.render();
+					});
+				})
+			);
+
 		// Theme color
 		containerEl.createEl('h3', { text: 'Theme Color', attr: { style: 'margin-top:24px;margin-bottom:8px;font-family:"Century Gothic","AppleGothic","Trebuchet MS",sans-serif;' } });
 		containerEl.createEl('p', { text: 'Choose the accent color used throughout the plugin.', attr: { style: 'color:var(--text-muted);font-size:13px;margin-bottom:12px;' } });
@@ -243,7 +268,7 @@ class TodoView extends ItemView {
 
 	async onOpen() { this.data = this.plugin.data; this.runDayRollover(); this.render(); }
 
-	save() { this.plugin.data = this.data; this.updateScore(); this.plugin.saveData(this.data); }
+	save() { this.plugin.data = this.data; this.updateScore(); this.plugin.saveDataQueued(this.data); }
 
 	// ─── Rollover ─────────────────────────────────────────────────────────────
 	runDayRollover() {
@@ -346,7 +371,7 @@ class TodoView extends ItemView {
 	}
 
 	addCategory(name: string) {
-		this.data.categories.push({ id: 'cat-' + Date.now(), name, tasks: [] });
+		this.data.categories.push({ id: 'cat-' + Date.now(), name, tasks: [], createdDate: todayIso() });
 		this.updateTagsNote();
 		this.save(); this.render();
 	}
@@ -498,7 +523,15 @@ class TodoView extends ItemView {
 		const section = root.createDiv('todo-section');
 		section.createEl('h1', { cls: 'todo-section-title', text: 'Categories' });
 		const grid = section.createDiv('categories-kanban');
-		this.data.categories.forEach(cat => this.renderCategoryBlock(grid, cat));
+		
+		let catsToRender = [...this.data.categories];
+		if (this.plugin.settings.sortOrder === 'alpha-asc') catsToRender.sort((a, b) => a.name.localeCompare(b.name));
+		else if (this.plugin.settings.sortOrder === 'alpha-desc') catsToRender.sort((a, b) => b.name.localeCompare(a.name));
+		else if (this.plugin.settings.sortOrder === 'date-asc') catsToRender.sort((a, b) => (a.createdDate || '').localeCompare(b.createdDate || ''));
+		else if (this.plugin.settings.sortOrder === 'date-desc') catsToRender.sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
+		catsToRender.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+		
+		catsToRender.forEach(cat => this.renderCategoryBlock(grid, cat));
 
 		// Add category with dropdown
 		const addArea = section.createDiv('add-category-area');
@@ -542,7 +575,7 @@ class TodoView extends ItemView {
 		const catHdr = block.createDiv('category-header');
 		if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || '#8a5cf5')) + '60';
 
-		const nameEl = catHdr.createEl('span', { cls: 'category-name', text: cat.name });
+		const nameEl = catHdr.createEl('span', { cls: 'category-name', text: (cat.pinned ? '⭐ ' : '') + cat.name });
 		if (cat.color) nameEl.style.color = cat.color;
 
 		const tagEl = catHdr.createEl('span', { cls: 'category-tag', text: catTag(cat.name, cat.customTag) });
@@ -587,11 +620,25 @@ class TodoView extends ItemView {
 		const menu = block.createDiv('cat-dropdown');
 		this.activeMenu = menu;
 
-		const up = menu.createDiv('cat-dropdown-item'); up.setText('↑ Move up');
-		up.onclick = () => { this.closeActiveMenu(); this.moveCategoryUp(cat.id); };
-		const down = menu.createDiv('cat-dropdown-item'); down.setText('↓ Move down');
-		down.onclick = () => { this.closeActiveMenu(); this.moveCategoryDown(cat.id); };
+		if (this.plugin.settings.sortOrder === 'manual') {
+			const up = menu.createDiv('cat-dropdown-item'); up.setText('↑ Move up');
+			up.onclick = () => { this.closeActiveMenu(); this.moveCategoryUp(cat.id); };
+			const down = menu.createDiv('cat-dropdown-item'); down.setText('↓ Move down');
+			down.onclick = () => { this.closeActiveMenu(); this.moveCategoryDown(cat.id); };
+			menu.createDiv('cat-dropdown-divider');
+		}
 
+		const pin = menu.createDiv('cat-dropdown-item');
+		pin.setText(cat.pinned ? 'Unpin category' : '⭐ Pin to top');
+		pin.onclick = () => {
+			this.closeActiveMenu();
+			if (!cat.pinned && this.data.categories.filter(c => c.pinned).length >= 2) {
+				new Notice('You can only pin up to 2 categories!');
+				return;
+			}
+			cat.pinned = !cat.pinned;
+			this.save(); this.render();
+		};
 		menu.createDiv('cat-dropdown-divider');
 
 		const rename = menu.createDiv('cat-dropdown-item'); rename.setText('✎ Rename');
@@ -650,6 +697,7 @@ class TodoView extends ItemView {
 		const overdue = this.getOverdueStatus(task);
 		const row = container.createDiv(`todo-task${task.completed ? ' completed' : ''}`);
 		row.style.position = 'relative';
+		row.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context); };
 
 		const left = row.createDiv('task-left');
 		const checkbox = left.createDiv(`task-checkbox${task.completed ? ' checked' : ''}`);
@@ -808,12 +856,13 @@ class TodoView extends ItemView {
 export default class MyTodoPlugin extends Plugin {
 	data: TodoData = DEFAULT_DATA;
 	settings: TodoSettings = DEFAULT_SETTINGS;
+	private _savePromise: Promise<void> | null = null;
+	private lastSavedDataString: string = '';
 
 	async onload() {
 		const saved = await this.loadData();
 		this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? '' };
 		this.settings = { ...DEFAULT_SETTINGS, ...(saved?.settings ?? {}) };
-		// Ensure themeColor has a value
 		if (!this.settings.themeColor) this.settings.themeColor = '#8a5cf5';
 
 		this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
@@ -829,9 +878,39 @@ export default class MyTodoPlugin extends Plugin {
 				});
 			})
 		);
+
+		// File watcher for external sync
+		this.registerEvent(
+			this.app.vault.on('modify', async (file) => {
+				if (file.path === this.manifest.dir + '/data.json') {
+					const content = await this.app.vault.read(file as TFile);
+					if (content !== this.lastSavedDataString) {
+						const saved = JSON.parse(content);
+						this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? '' };
+						this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(v => {
+							const view = v.view as TodoView;
+							if (view?.render) { view.data = this.data; view.render(); }
+						});
+					}
+				}
+			})
+		);
 	}
 
-	async saveSettings() { await this.saveData({ ...this.data, settings: this.settings }); }
+	saveDataQueued(data: any) {
+		const saveCall = async () => {
+			this.lastSavedDataString = JSON.stringify(data);
+			await this.saveData(data);
+		};
+		if (!this._savePromise) {
+			this._savePromise = saveCall();
+		} else {
+			this._savePromise = this._savePromise.then(saveCall).catch(saveCall);
+		}
+		return this._savePromise;
+	}
+
+	async saveSettings() { await this.saveDataQueued({ ...this.data, settings: this.settings }); }
 	async onunload() { this.app.workspace.detachLeavesOfType(VIEW_TYPE); }
 
 	async activateView() {
