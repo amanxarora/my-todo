@@ -1,0 +1,9 @@
+# Dependency directories
+node_modules/
+
+# Obsidian vault specific files
+.obsidian/
+
+# OS generated files
+.DS_Store
+Thumbs.db
