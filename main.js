@@ -554,7 +554,7 @@ ${taskList}
       e.preventDefault();
       e.stopPropagation();
       this.closeActiveMenu();
-      this.showCategoryMenu(block, cat);
+      this.showCategoryMenu(block, cat, e);
     };
     const nameEl = catHdr.createEl("span", { cls: "category-name", text: (cat.pinned ? "\u2B50 " : "") + cat.name });
     if (cat.color) nameEl.style.color = cat.color;
@@ -609,8 +609,14 @@ ${taskList}
       if (e.key === "Enter") submit();
     });
   }
-  showCategoryMenu(block, cat) {
+  showCategoryMenu(block, cat, e) {
     const menu = block.createDiv("cat-dropdown");
+    if (e) {
+      menu.style.position = "fixed";
+      menu.style.top = e.clientY + "px";
+      menu.style.left = e.clientX + "px";
+      menu.style.right = "auto";
+    }
     this.activeMenu = menu;
     if (this.plugin.settings.sortOrder === "manual") {
       const up = menu.createDiv("cat-dropdown-item");
@@ -658,9 +664,9 @@ ${taskList}
         else this.render();
       };
       input.addEventListener("blur", confirm2);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") confirm2();
-        if (e.key === "Escape") this.render();
+      input.addEventListener("keydown", (e2) => {
+        if (e2.key === "Enter") confirm2();
+        if (e2.key === "Escape") this.render();
       });
     };
     const createNote = menu.createDiv("cat-dropdown-item");
@@ -688,9 +694,9 @@ ${taskList}
         else this.render();
       };
       input.addEventListener("blur", confirmTag);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") confirmTag();
-        if (e.key === "Escape") this.render();
+      input.addEventListener("keydown", (e2) => {
+        if (e2.key === "Enter") confirmTag();
+        if (e2.key === "Escape") this.render();
       });
     };
     menu.createDiv("cat-dropdown-divider");
@@ -723,7 +729,7 @@ ${taskList}
       e.preventDefault();
       e.stopPropagation();
       this.closeActiveMenu();
-      this.showTaskMenu(row, task, context);
+      this.showTaskMenu(row, task, context, e);
     };
     const left = row.createDiv("task-left");
     const checkbox = left.createDiv(`task-checkbox${task.completed ? " checked" : ""}`);
@@ -770,11 +776,18 @@ ${taskList}
       this.showTaskMenu(row, task, context);
     };
   }
-  showTaskMenu(row, task, context) {
+  showTaskMenu(row, task, context, e) {
     const menu = document.createElement("div");
     menu.className = "task-dropdown";
-    menu.style.top = "28px";
-    menu.style.right = "0px";
+    if (e) {
+      menu.style.position = "fixed";
+      menu.style.top = e.clientY + "px";
+      menu.style.left = e.clientX + "px";
+      menu.style.right = "auto";
+    } else {
+      menu.style.top = "28px";
+      menu.style.right = "0px";
+    }
     row.appendChild(menu);
     this.activeMenu = menu;
     const editItem = menu.createDiv("task-dropdown-item");
@@ -899,28 +912,9 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
         });
       })
     );
-    this.registerEvent(
-      this.app.vault.on("modify", async (file) => {
-        if (file.path === this.manifest.dir + "/data.json") {
-          const content = await this.app.vault.read(file);
-          if (content !== this.lastSavedDataString) {
-            const saved2 = JSON.parse(content);
-            this.data = { ...DEFAULT_DATA, ...saved2, categories: saved2?.categories ?? DEFAULT_DATA.categories, scores: saved2?.scores ?? [], lastRolloverDate: saved2?.lastRolloverDate ?? "" };
-            this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
-              const view = v.view;
-              if (view?.render) {
-                view.data = this.data;
-                view.render();
-              }
-            });
-          }
-        }
-      })
-    );
   }
   saveDataQueued(data) {
     const saveCall = async () => {
-      this.lastSavedDataString = JSON.stringify(data);
       await this.saveData(data);
     };
     if (!this._savePromise) {

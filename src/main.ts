@@ -575,7 +575,7 @@ class TodoView extends ItemView {
 		const catHdr = block.createDiv('category-header');
 		if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || '#8a5cf5')) + '60';
 		
-		catHdr.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showCategoryMenu(block, cat); };
+		catHdr.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showCategoryMenu(block, cat, e); };
 
 		const nameEl = catHdr.createEl('span', { cls: 'category-name', text: (cat.pinned ? '⭐ ' : '') + cat.name });
 		if (cat.color) nameEl.style.color = cat.color;
@@ -618,8 +618,14 @@ class TodoView extends ItemView {
 		textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
 	}
 
-	showCategoryMenu(block: HTMLElement, cat: Category) {
+	showCategoryMenu(block: HTMLElement, cat: Category, e?: MouseEvent) {
 		const menu = block.createDiv('cat-dropdown');
+		if (e) {
+			menu.style.position = 'fixed';
+			menu.style.top = e.clientY + 'px';
+			menu.style.left = e.clientX + 'px';
+			menu.style.right = 'auto';
+		}
 		this.activeMenu = menu;
 
 		if (this.plugin.settings.sortOrder === 'manual') {
@@ -699,7 +705,7 @@ class TodoView extends ItemView {
 		const overdue = this.getOverdueStatus(task);
 		const row = container.createDiv(`todo-task${task.completed ? ' completed' : ''}`);
 		row.style.position = 'relative';
-		row.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context); };
+		row.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context, e); };
 
 		const left = row.createDiv('task-left');
 		const checkbox = left.createDiv(`task-checkbox${task.completed ? ' checked' : ''}`);
@@ -751,10 +757,17 @@ class TodoView extends ItemView {
 		dotBtn.onclick = (e) => { e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context); };
 	}
 
-	showTaskMenu(row: HTMLElement, task: Task, context: 'daily' | 'weekly' | 'category') {
+	showTaskMenu(row: HTMLElement, task: Task, context: 'daily' | 'weekly' | 'category', e?: MouseEvent) {
 		const menu = document.createElement('div');
 		menu.className = 'task-dropdown';
-		menu.style.top = '28px'; menu.style.right = '0px';
+		if (e) {
+			menu.style.position = 'fixed';
+			menu.style.top = e.clientY + 'px';
+			menu.style.left = e.clientX + 'px';
+			menu.style.right = 'auto';
+		} else {
+			menu.style.top = '28px'; menu.style.right = '0px';
+		}
 		row.appendChild(menu);
 		this.activeMenu = menu;
 
@@ -880,28 +893,10 @@ export default class MyTodoPlugin extends Plugin {
 				});
 			})
 		);
-
-		// File watcher for external sync
-		this.registerEvent(
-			this.app.vault.on('modify', async (file) => {
-				if (file.path === this.manifest.dir + '/data.json') {
-					const content = await this.app.vault.read(file as TFile);
-					if (content !== this.lastSavedDataString) {
-						const saved = JSON.parse(content);
-						this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? '' };
-						this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(v => {
-							const view = v.view as TodoView;
-							if (view?.render) { view.data = this.data; view.render(); }
-						});
-					}
-				}
-			})
-		);
 	}
 
 	saveDataQueued(data: any) {
 		const saveCall = async () => {
-			this.lastSavedDataString = JSON.stringify(data);
 			await this.saveData(data);
 		};
 		if (!this._savePromise) {
