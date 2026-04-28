@@ -18,5 +18,8 @@ _Coming soon to Obsidian Community Plugins._
 2. Extract the files (`main.js`, `manifest.json`, `styles.css`) into your vault's `.obsidian/plugins/my-todo` folder.
 3. Enable the plugin in your Obsidian settings.
 
+## Support & Feedback
+This is my first open-source project! If you encounter any bugs, have feature requests, or just want to share how you're using the plugin, please [open an issue on GitHub](https://github.com/amanxarora/my-todo/issues). I'd love to hear from you!
+
 ## License
 MIT
