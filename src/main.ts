@@ -93,8 +93,12 @@ function toIsoDate(input: string): string {
 	return '';
 }
 
+function localIso(d: Date): string {
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function todayIso(): string {
-	return new Date().toISOString().split('T')[0];
+	return localIso(new Date());
 }
 
 function catTag(name: string, customTag?: string): string {
@@ -104,12 +108,12 @@ function catTag(name: string, customTag?: string): string {
 
 function getLogicalDay(rolloverHour: number, rolloverMinute: number): string {
 	const now = new Date();
-	const rolloverMs = (rolloverHour * 60 + rolloverMinute) * 60 * 1000;
-	const nowMs = (now.getHours() * 60 + now.getMinutes()) * 60 * 1000;
-	if (nowMs < rolloverMs) {
+	const currentHour = now.getHours();
+	const currentMinute = now.getMinutes();
+	if (currentHour < rolloverHour || (currentHour === rolloverHour && currentMinute < rolloverMinute)) {
 		const prev = new Date(now);
 		prev.setDate(prev.getDate() - 1);
-		return prev.toISOString().split('T')[0];
+		return localIso(prev);
 	}
 	return todayIso();
 }
@@ -162,7 +166,7 @@ class TodoSettingTab extends PluginSettingTab {
 					this.plugin.settings.rolloverHour = h; this.plugin.settings.rolloverMinute = m;
 					await this.plugin.saveSettings();
 					this.updatePreview(containerEl);
-					new Notice(`✓ Day reset time saved: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+					new Notice(`✓ Day reset time saved: ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
 				});
 			});
 
@@ -227,7 +231,7 @@ class TodoSettingTab extends PluginSettingTab {
 				await this.plugin.saveSettings();
 				// Re-render all swatches
 				swatchWrap.querySelectorAll('div').forEach((s: HTMLElement, i: number) => {
-					s.s.style.borderColor = THEME_COLORS[i].value === tc.value ? 'white' : 'transparent';
+					s.style.borderColor = THEME_COLORS[i].value === tc.value ? 'white' : 'transparent';
 				});
 				// Re-render plugin view if open
 				this.plugin.app.workspace.getLeavesOfType('my-todo-view').forEach(v => {
@@ -266,9 +270,18 @@ class TodoView extends ItemView {
 	getDisplayText() { return 'My Todo'; }
 	getIcon() { return 'check-square'; }
 
-	async onOpen() { this.data = this.plugin.data; this.runDayRollover(); this.render(); }
+	async onOpen() {
+		this.data = this.plugin.data;
+		this.runDayRollover();
+		this.render();
+		this.registerDomEvent(document, 'click', (e: MouseEvent) => {
+			if (this.activeMenu && !this.activeMenu.contains(e.target as Node)) {
+				this.closeActiveMenu();
+			}
+		});
+	}
 
-	save() { this.plugin.data = this.data; this.updateScore(); this.plugin.saveDataQueued(this.data); }
+	save(skipUpdateScore = false) { this.plugin.data = this.data; if (!skipUpdateScore) this.updateScore(); this.plugin.saveDataQueued({ ...this.data, settings: this.plugin.settings }); }
 
 	// ─── Rollover ─────────────────────────────────────────────────────────────
 	runDayRollover() {
@@ -288,19 +301,19 @@ class TodoView extends ItemView {
 			else this.data.scores.push({ date: prevDay, plannedHours: planned, completedHours: completed, score });
 		}
 
-		const currentMonth = logicalDay.slice(0, 7);
-		this.data.scores = this.data.scores.filter(s => s.date.startsWith(currentMonth));
 
-		for (const cat of this.data.categories) cat.tasks = cat.tasks.filter(t => !(t.inDaily && t.completed));
+
+		for (const cat of this.data.categories) cat.tasks = cat.tasks.filter(t => !t.completed);
 		for (const cat of this.data.categories) for (const task of cat.tasks) if (task.inDaily && !task.completed) task.inDaily = false;
 
 		this.data.lastRolloverDate = logicalDay;
-		this.save();
+		this.save(true);
 		new Notice('🌅 Day rolled over.');
 	}
 
 	updateScore() {
-		const today = todayIso();
+		const { rolloverHour, rolloverMinute } = this.plugin.settings;
+		const today = getLogicalDay(rolloverHour, rolloverMinute);
 		const dailyTasks = this.getDailyTasks();
 		const planned = dailyTasks.reduce((s, t) => s + t.estimatedHours, 0);
 		const completed = dailyTasks.filter(t => t.completed).reduce((s, t) => s + t.estimatedHours, 0);
@@ -318,8 +331,9 @@ class TodoView extends ItemView {
 
 	getOverdueStatus(task: Task): 'none' | 'orange' | 'red' {
 		if (task.completed || !task.dueDate) return 'none';
-		const today = new Date(); today.setHours(0,0,0,0);
-		const due = new Date(task.dueDate); due.setHours(0,0,0,0);
+		const today = new Date(); today.setHours(0, 0, 0, 0);
+		const [y, m, d] = task.dueDate.split('-').map(Number);
+		const due = new Date(y, m - 1, d, 0, 0, 0, 0);
 		const diff = Math.floor((today.getTime() - due.getTime()) / 86400000);
 		if (diff >= 3) return 'red';
 		if (diff >= 1) return 'orange';
@@ -332,6 +346,8 @@ class TodoView extends ItemView {
 		if (!task) return;
 		task.completed = !task.completed;
 		task.completedDate = task.completed ? todayIso() : undefined;
+		// Tasks are no longer deleted immediately upon completion.
+		// They will persist with a strikethrough and be purged during the next rollover.
 		this.save(); this.render();
 	}
 
@@ -411,14 +427,14 @@ class TodoView extends ItemView {
 	moveCategoryUp(catId: string) {
 		const idx = this.data.categories.findIndex(c => c.id === catId);
 		if (idx <= 0) return;
-		[this.data.categories[idx-1], this.data.categories[idx]] = [this.data.categories[idx], this.data.categories[idx-1]];
+		[this.data.categories[idx - 1], this.data.categories[idx]] = [this.data.categories[idx], this.data.categories[idx - 1]];
 		this.save(); this.render();
 	}
 
 	moveCategoryDown(catId: string) {
 		const idx = this.data.categories.findIndex(c => c.id === catId);
 		if (idx >= this.data.categories.length - 1) return;
-		[this.data.categories[idx+1], this.data.categories[idx]] = [this.data.categories[idx], this.data.categories[idx+1]];
+		[this.data.categories[idx + 1], this.data.categories[idx]] = [this.data.categories[idx], this.data.categories[idx + 1]];
 		this.save(); this.render();
 	}
 
@@ -429,7 +445,7 @@ class TodoView extends ItemView {
 		const content = `---\ntags: [my-todo]\n---\n\n<!-- Auto-generated by My Todo plugin. Do not edit. -->\n\n${tags}\n`;
 		try {
 			await vault.createFolder(NOTES_FOLDER);
-		} catch {}
+		} catch { }
 		const existing = vault.getAbstractFileByPath(TAGS_NOTE);
 		if (existing instanceof TFile) await vault.modify(existing, content);
 		else await vault.create(TAGS_NOTE, content);
@@ -444,7 +460,7 @@ class TodoView extends ItemView {
 		const content = `---\ntags: [${tag.slice(1)}]\n---\n\n# ${cat.name}\n\n${tag}\n\n## Tasks\n\n${taskList}\n`;
 		const safeName = cat.name.replace(/[\\/:*?"<>|.]/g, '-');
 		const path = `${NOTES_FOLDER}/${safeName}.md`;
-		try { await vault.createFolder(NOTES_FOLDER); } catch {}
+		try { await vault.createFolder(NOTES_FOLDER); } catch { }
 		try {
 			const existing = vault.getAbstractFileByPath(path);
 			if (existing instanceof TFile) {
@@ -467,23 +483,31 @@ class TodoView extends ItemView {
 	}
 
 	closeActiveMenu() {
-		if (this.activeMenu) { this.activeMenu.remove(); this.activeMenu = null; }
+		if (this.activeMenu) {
+			if (this.activeMenu.parentNode) this.activeMenu.parentNode.removeChild(this.activeMenu);
+			this.activeMenu = null;
+		}
 	}
 
 	// ─── Render ───────────────────────────────────────────────────────────────
 	render() {
 		this.data = this.plugin.data;
 		const container = this.containerEl.children[1] as HTMLElement;
+		if (container.querySelector('input:focus')) return; // Prevent focus stealing on re-render
 		container.empty();
 		const tc = this.plugin.settings.themeColor || '#8a5cf5';
 		const tcLight = tc + '20';
 		const tcMid = tc + '40';
 		const tcFaint = tc + '18';
 		const tcFaint15 = tc + '15';
-		container.setAttribute('style', `pointer-events:all !important; user-select:text !important; overflow-y:auto; --todo-tc:${tc}; --todo-tc-light:${tcLight}; --todo-tc-mid:${tcMid}; --todo-tc-faint:${tcFaint}; --todo-tc-faint15:${tcFaint15};`);
-		container.onclick = (e) => {
-			if (this.activeMenu && !this.activeMenu.contains(e.target as Node)) this.closeActiveMenu();
-		};
+		container.style.pointerEvents = 'all';
+		container.style.userSelect = 'text';
+		container.style.overflowY = 'auto';
+		container.style.setProperty('--todo-tc', tc);
+		container.style.setProperty('--todo-tc-light', tcLight);
+		container.style.setProperty('--todo-tc-mid', tcMid);
+		container.style.setProperty('--todo-tc-faint', tcFaint);
+		container.style.setProperty('--todo-tc-faint15', tcFaint15);
 		const root = container.createDiv('my-todo-root');
 		this.renderHeader(root);
 		this.renderDaily(root);
@@ -493,14 +517,14 @@ class TodoView extends ItemView {
 	}
 
 	renderHeader(root: HTMLElement) {
-		const today = todayIso();
+		const { rolloverHour, rolloverMinute } = this.plugin.settings;
+		const today = getLogicalDay(rolloverHour, rolloverMinute);
 		const s = this.data.scores.find(x => x.date === today);
 		const planned = s?.plannedHours ?? 0; const completed = s?.completedHours ?? 0; const score = s?.score ?? 0;
-		const { rolloverHour, rolloverMinute } = this.plugin.settings;
 		const header = root.createDiv('todo-header');
 		header.createEl('h1', { text: 'My Todo' });
 		header.createEl('span', { cls: 'todo-score-badge', text: planned === 0 ? 'No tasks today' : `${completed}h / ${planned}h · ${score}%` });
-		header.createEl('span', { cls: 'todo-rollover-info', text: `Resets ${String(rolloverHour).padStart(2,'0')}:${String(rolloverMinute).padStart(2,'0')}` });
+		header.createEl('span', { cls: 'todo-rollover-info', text: `Resets ${String(rolloverHour).padStart(2, '0')}:${String(rolloverMinute).padStart(2, '0')}` });
 	}
 
 	renderDaily(root: HTMLElement) {
@@ -523,14 +547,14 @@ class TodoView extends ItemView {
 		const section = root.createDiv('todo-section');
 		section.createEl('h1', { cls: 'todo-section-title', text: 'Categories' });
 		const grid = section.createDiv('categories-kanban');
-		
+
 		let catsToRender = [...this.data.categories];
 		if (this.plugin.settings.sortOrder === 'alpha-asc') catsToRender.sort((a, b) => a.name.localeCompare(b.name));
 		else if (this.plugin.settings.sortOrder === 'alpha-desc') catsToRender.sort((a, b) => b.name.localeCompare(a.name));
 		else if (this.plugin.settings.sortOrder === 'date-asc') catsToRender.sort((a, b) => (a.createdDate || '').localeCompare(b.createdDate || ''));
 		else if (this.plugin.settings.sortOrder === 'date-desc') catsToRender.sort((a, b) => (b.createdDate || '').localeCompare(a.createdDate || ''));
 		catsToRender.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-		
+
 		catsToRender.forEach(cat => this.renderCategoryBlock(grid, cat));
 
 		// Add category with dropdown
@@ -574,7 +598,7 @@ class TodoView extends ItemView {
 		const block = container.createDiv('category-block');
 		const catHdr = block.createDiv('category-header');
 		if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || '#8a5cf5')) + '60';
-		
+
 		catHdr.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showCategoryMenu(block, cat, e); };
 
 		const nameEl = catHdr.createEl('span', { cls: 'category-name', text: (cat.pinned ? '⭐ ' : '') + cat.name });
@@ -730,8 +754,8 @@ class TodoView extends ItemView {
 		// Show category tag in weekly and daily
 		if (context === 'weekly' || context === 'daily') {
 			// find customTag for this task's category
-		const taskCat = this.data.categories.find(c => c.name === task.category);
-		badges.createEl('span', { cls: 'task-cat-tag', text: catTag(task.category, taskCat?.customTag) });
+			const taskCat = this.data.categories.find(c => c.name === task.category);
+			badges.createEl('span', { cls: 'task-cat-tag', text: catTag(task.category, taskCat?.customTag) });
 		}
 
 		const actionsEl = row.createDiv('task-actions');
@@ -754,21 +778,23 @@ class TodoView extends ItemView {
 
 		// 3-dot menu for all contexts
 		const dotBtn = actionsEl.createEl('button', { cls: 'task-3dot-btn', text: '⋯' });
-		dotBtn.onclick = (e) => { e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context); };
+		dotBtn.onclick = (e) => { e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context, e); };
 	}
 
 	showTaskMenu(row: HTMLElement, task: Task, context: 'daily' | 'weekly' | 'category', e?: MouseEvent) {
 		const menu = document.createElement('div');
 		menu.className = 'task-dropdown';
+		menu.style.position = 'fixed';
+		menu.style.zIndex = '99999';
 		if (e) {
-			const rect = row.getBoundingClientRect();
-			menu.style.top = (e.clientY - rect.top) + 'px';
-			menu.style.left = (e.clientX - rect.left) + 'px';
-			menu.style.right = 'auto';
+			menu.style.top = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+			menu.style.left = Math.min(e.clientX, window.innerWidth - 160) + 'px';
 		} else {
-			menu.style.top = '28px'; menu.style.right = '0px';
+			const rect = row.getBoundingClientRect();
+			menu.style.top = Math.min(rect.bottom, window.innerHeight - 160) + 'px';
+			menu.style.left = Math.min(rect.right - 150, window.innerWidth - 160) + 'px';
 		}
-		row.appendChild(menu);
+		document.body.appendChild(menu);
 		this.activeMenu = menu;
 
 		// Edit
@@ -791,6 +817,7 @@ class TodoView extends ItemView {
 	}
 
 	showTaskEditForm(row: HTMLElement, task: Task) {
+		if (row.nextElementSibling?.classList.contains('task-edit-form')) return; // Prevent duplication
 		// Insert edit form right below the task row
 		const form = document.createElement('div');
 		form.className = 'task-edit-form';
@@ -827,7 +854,9 @@ class TodoView extends ItemView {
 		const section = root.createDiv('heatmap-section');
 		section.createEl('h1', { cls: 'heatmap-section-title', text: 'Productivity Heatmap' });
 
-		const today = new Date();
+		const logicalDayStr = getLogicalDay(this.plugin.settings.rolloverHour, this.plugin.settings.rolloverMinute);
+		const [y, m, d] = logicalDayStr.split('-').map(Number);
+		const today = new Date(y, m - 1, d);
 		const year = today.getFullYear(); const month = today.getMonth();
 		const daysInMonth = new Date(year, month + 1, 0).getDate();
 		const monthName = today.toLocaleString('default', { month: 'long' });
@@ -840,7 +869,7 @@ class TodoView extends ItemView {
 		const grid = section.createDiv('heatmap-grid');
 		for (let day = 1; day <= daysInMonth; day++) {
 			const d = new Date(year, month, day);
-			const dateStr = d.toISOString().split('T')[0];
+			const dateStr = localIso(d);
 			const scoreEntry = this.data.scores.find(s => s.date === dateStr);
 			const score = scoreEntry?.score ?? 0;
 			const isFuture = day > todayDay;
@@ -861,7 +890,7 @@ class TodoView extends ItemView {
 	scoreToColor(score: number): string {
 		if (score === 0) return 'var(--background-secondary)';
 		const hex = this.plugin.settings.themeColor || '#8a5cf5';
-		const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+		const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
 		return `rgba(${r},${g},${b},${(0.15 + (score / 100) * 0.85).toFixed(2)})`;
 	}
 }
@@ -872,7 +901,9 @@ export default class MyTodoPlugin extends Plugin {
 	data: TodoData = DEFAULT_DATA;
 	settings: TodoSettings = DEFAULT_SETTINGS;
 	private _savePromise: Promise<void> | null = null;
-	private lastSavedDataString: string = '';
+	private _saveTimeout: number | null = null;
+	private _pendingSaveData: any = null;
+	private _pendingSaveResolvers: (() => void)[] = [];
 
 	async onload() {
 		const saved = await this.loadData();
@@ -893,18 +924,43 @@ export default class MyTodoPlugin extends Plugin {
 				});
 			})
 		);
+
+		// Periodic rollover check — guarantees state freshness when Obsidian stays open overnight
+		this.registerInterval(window.setInterval(() => {
+			this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(v => {
+				const view = v.view as TodoView;
+				if (view?.runDayRollover) view.runDayRollover();
+			});
+		}, 60_000));
 	}
 
-	saveDataQueued(data: any) {
-		const saveCall = async () => {
-			await this.saveData(data);
-		};
-		if (!this._savePromise) {
-			this._savePromise = saveCall();
-		} else {
-			this._savePromise = this._savePromise.then(saveCall).catch(saveCall);
-		}
-		return this._savePromise;
+	saveDataQueued(data: any): Promise<void> {
+		return new Promise<void>((resolve) => {
+			this._pendingSaveData = data;
+			this._pendingSaveResolvers.push(resolve);
+
+			if (this._saveTimeout) {
+				window.clearTimeout(this._saveTimeout);
+			}
+
+			this._saveTimeout = window.setTimeout(() => {
+				this._saveTimeout = null;
+				const dataToSave = this._pendingSaveData;
+				const resolvers = this._pendingSaveResolvers;
+				this._pendingSaveResolvers = [];
+
+				const saveCall = async () => {
+					await this.saveData(dataToSave);
+					resolvers.forEach(r => r());
+				};
+
+				if (!this._savePromise) {
+					this._savePromise = saveCall();
+				} else {
+					this._savePromise = this._savePromise.then(saveCall).catch(saveCall);
+				}
+			}, 1000);
+		});
 	}
 
 	async saveSettings() { await this.saveDataQueued({ ...this.data, settings: this.settings }); }

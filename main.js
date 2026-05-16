@@ -57,8 +57,11 @@ function toDisplayDate(isoDate) {
   const [y, m, d] = isoDate.split("-");
   return `${d}-${m}-${y}`;
 }
+function localIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function todayIso() {
-  return (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  return localIso(/* @__PURE__ */ new Date());
 }
 function catTag(name, customTag) {
   if (customTag) return customTag.startsWith("#") ? customTag : "#" + customTag;
@@ -66,12 +69,12 @@ function catTag(name, customTag) {
 }
 function getLogicalDay(rolloverHour, rolloverMinute) {
   const now = /* @__PURE__ */ new Date();
-  const rolloverMs = (rolloverHour * 60 + rolloverMinute) * 60 * 1e3;
-  const nowMs = (now.getHours() * 60 + now.getMinutes()) * 60 * 1e3;
-  if (nowMs < rolloverMs) {
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  if (currentHour < rolloverHour || currentHour === rolloverHour && currentMinute < rolloverMinute) {
     const prev = new Date(now);
     prev.setDate(prev.getDate() - 1);
-    return prev.toISOString().split("T")[0];
+    return localIso(prev);
   }
   return todayIso();
 }
@@ -161,7 +164,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
         this.plugin.settings.themeColor = tc.value;
         await this.plugin.saveSettings();
         swatchWrap.querySelectorAll("div").forEach((s, i) => {
-          s.s.style.borderColor = THEME_COLORS[i].value === tc.value ? "white" : "transparent";
+          s.style.borderColor = THEME_COLORS[i].value === tc.value ? "white" : "transparent";
         });
         this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
           const view = v.view;
@@ -203,11 +206,16 @@ var TodoView = class extends import_obsidian.ItemView {
     this.data = this.plugin.data;
     this.runDayRollover();
     this.render();
+    this.registerDomEvent(document, "click", (e) => {
+      if (this.activeMenu && !this.activeMenu.contains(e.target)) {
+        this.closeActiveMenu();
+      }
+    });
   }
-  save() {
+  save(skipUpdateScore = false) {
     this.plugin.data = this.data;
-    this.updateScore();
-    this.plugin.saveDataQueued(this.data);
+    if (!skipUpdateScore) this.updateScore();
+    this.plugin.saveDataQueued({ ...this.data, settings: this.plugin.settings });
   }
   // ─── Rollover ─────────────────────────────────────────────────────────────
   runDayRollover() {
@@ -228,16 +236,15 @@ var TodoView = class extends import_obsidian.ItemView {
         existing.score = score;
       } else this.data.scores.push({ date: prevDay, plannedHours: planned, completedHours: completed, score });
     }
-    const currentMonth = logicalDay.slice(0, 7);
-    this.data.scores = this.data.scores.filter((s) => s.date.startsWith(currentMonth));
-    for (const cat of this.data.categories) cat.tasks = cat.tasks.filter((t) => !(t.inDaily && t.completed));
+    for (const cat of this.data.categories) cat.tasks = cat.tasks.filter((t) => !t.completed);
     for (const cat of this.data.categories) for (const task of cat.tasks) if (task.inDaily && !task.completed) task.inDaily = false;
     this.data.lastRolloverDate = logicalDay;
-    this.save();
+    this.save(true);
     new import_obsidian.Notice("\u{1F305} Day rolled over.");
   }
   updateScore() {
-    const today = todayIso();
+    const { rolloverHour, rolloverMinute } = this.plugin.settings;
+    const today = getLogicalDay(rolloverHour, rolloverMinute);
     const dailyTasks = this.getDailyTasks();
     const planned = dailyTasks.reduce((s, t) => s + t.estimatedHours, 0);
     const completed = dailyTasks.filter((t) => t.completed).reduce((s, t) => s + t.estimatedHours, 0);
@@ -268,8 +275,8 @@ var TodoView = class extends import_obsidian.ItemView {
     if (task.completed || !task.dueDate) return "none";
     const today = /* @__PURE__ */ new Date();
     today.setHours(0, 0, 0, 0);
-    const due = new Date(task.dueDate);
-    due.setHours(0, 0, 0, 0);
+    const [y, m, d] = task.dueDate.split("-").map(Number);
+    const due = new Date(y, m - 1, d, 0, 0, 0, 0);
     const diff = Math.floor((today.getTime() - due.getTime()) / 864e5);
     if (diff >= 3) return "red";
     if (diff >= 1) return "orange";
@@ -438,7 +445,7 @@ ${taskList}
   }
   closeActiveMenu() {
     if (this.activeMenu) {
-      this.activeMenu.remove();
+      if (this.activeMenu.parentNode) this.activeMenu.parentNode.removeChild(this.activeMenu);
       this.activeMenu = null;
     }
   }
@@ -446,16 +453,21 @@ ${taskList}
   render() {
     this.data = this.plugin.data;
     const container = this.containerEl.children[1];
+    if (container.querySelector("input:focus")) return;
     container.empty();
     const tc = this.plugin.settings.themeColor || "#8a5cf5";
     const tcLight = tc + "20";
     const tcMid = tc + "40";
     const tcFaint = tc + "18";
     const tcFaint15 = tc + "15";
-    container.setAttribute("style", `pointer-events:all !important; user-select:text !important; overflow-y:auto; --todo-tc:${tc}; --todo-tc-light:${tcLight}; --todo-tc-mid:${tcMid}; --todo-tc-faint:${tcFaint}; --todo-tc-faint15:${tcFaint15};`);
-    container.onclick = (e) => {
-      if (this.activeMenu && !this.activeMenu.contains(e.target)) this.closeActiveMenu();
-    };
+    container.style.pointerEvents = "all";
+    container.style.userSelect = "text";
+    container.style.overflowY = "auto";
+    container.style.setProperty("--todo-tc", tc);
+    container.style.setProperty("--todo-tc-light", tcLight);
+    container.style.setProperty("--todo-tc-mid", tcMid);
+    container.style.setProperty("--todo-tc-faint", tcFaint);
+    container.style.setProperty("--todo-tc-faint15", tcFaint15);
     const root = container.createDiv("my-todo-root");
     this.renderHeader(root);
     this.renderDaily(root);
@@ -464,12 +476,12 @@ ${taskList}
     this.renderHeatmap(root);
   }
   renderHeader(root) {
-    const today = todayIso();
+    const { rolloverHour, rolloverMinute } = this.plugin.settings;
+    const today = getLogicalDay(rolloverHour, rolloverMinute);
     const s = this.data.scores.find((x) => x.date === today);
     const planned = s?.plannedHours ?? 0;
     const completed = s?.completedHours ?? 0;
     const score = s?.score ?? 0;
-    const { rolloverHour, rolloverMinute } = this.plugin.settings;
     const header = root.createDiv("todo-header");
     header.createEl("h1", { text: "My Todo" });
     header.createEl("span", { cls: "todo-score-badge", text: planned === 0 ? "No tasks today" : `${completed}h / ${planned}h \xB7 ${score}%` });
@@ -773,22 +785,23 @@ ${taskList}
     dotBtn.onclick = (e) => {
       e.stopPropagation();
       this.closeActiveMenu();
-      this.showTaskMenu(row, task, context);
+      this.showTaskMenu(row, task, context, e);
     };
   }
   showTaskMenu(row, task, context, e) {
     const menu = document.createElement("div");
     menu.className = "task-dropdown";
+    menu.style.position = "fixed";
+    menu.style.zIndex = "99999";
     if (e) {
-      const rect = row.getBoundingClientRect();
-      menu.style.top = e.clientY - rect.top + "px";
-      menu.style.left = e.clientX - rect.left + "px";
-      menu.style.right = "auto";
+      menu.style.top = Math.min(e.clientY, window.innerHeight - 160) + "px";
+      menu.style.left = Math.min(e.clientX, window.innerWidth - 160) + "px";
     } else {
-      menu.style.top = "28px";
-      menu.style.right = "0px";
+      const rect = row.getBoundingClientRect();
+      menu.style.top = Math.min(rect.bottom, window.innerHeight - 160) + "px";
+      menu.style.left = Math.min(rect.right - 150, window.innerWidth - 160) + "px";
     }
-    row.appendChild(menu);
+    document.body.appendChild(menu);
     this.activeMenu = menu;
     const editItem = menu.createDiv("task-dropdown-item");
     editItem.setText("\u270E Edit");
@@ -811,6 +824,7 @@ ${taskList}
     };
   }
   showTaskEditForm(row, task) {
+    if (row.nextElementSibling?.classList.contains("task-edit-form")) return;
     const form = document.createElement("div");
     form.className = "task-edit-form";
     const r1 = form.createDiv("task-edit-row");
@@ -847,7 +861,9 @@ ${taskList}
   renderHeatmap(root) {
     const section = root.createDiv("heatmap-section");
     section.createEl("h1", { cls: "heatmap-section-title", text: "Productivity Heatmap" });
-    const today = /* @__PURE__ */ new Date();
+    const logicalDayStr = getLogicalDay(this.plugin.settings.rolloverHour, this.plugin.settings.rolloverMinute);
+    const [y, m, d] = logicalDayStr.split("-").map(Number);
+    const today = new Date(y, m - 1, d);
     const year = today.getFullYear();
     const month = today.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -858,8 +874,8 @@ ${taskList}
     monthLabel.style.cssText = "font-size:11px;color:var(--text-muted);margin:0 0 4px 0;";
     const grid = section.createDiv("heatmap-grid");
     for (let day = 1; day <= daysInMonth; day++) {
-      const d = new Date(year, month, day);
-      const dateStr = d.toISOString().split("T")[0];
+      const d2 = new Date(year, month, day);
+      const dateStr = localIso(d2);
       const scoreEntry = this.data.scores.find((s) => s.date === dateStr);
       const score = scoreEntry?.score ?? 0;
       const isFuture = day > todayDay;
@@ -890,7 +906,9 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
     this.data = DEFAULT_DATA;
     this.settings = DEFAULT_SETTINGS;
     this._savePromise = null;
-    this.lastSavedDataString = "";
+    this._saveTimeout = null;
+    this._pendingSaveData = null;
+    this._pendingSaveResolvers = [];
   }
   async onload() {
     const saved = await this.loadData();
@@ -912,17 +930,36 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
         });
       })
     );
+    this.registerInterval(window.setInterval(() => {
+      this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
+        const view = v.view;
+        if (view?.runDayRollover) view.runDayRollover();
+      });
+    }, 6e4));
   }
   saveDataQueued(data) {
-    const saveCall = async () => {
-      await this.saveData(data);
-    };
-    if (!this._savePromise) {
-      this._savePromise = saveCall();
-    } else {
-      this._savePromise = this._savePromise.then(saveCall).catch(saveCall);
-    }
-    return this._savePromise;
+    return new Promise((resolve) => {
+      this._pendingSaveData = data;
+      this._pendingSaveResolvers.push(resolve);
+      if (this._saveTimeout) {
+        window.clearTimeout(this._saveTimeout);
+      }
+      this._saveTimeout = window.setTimeout(() => {
+        this._saveTimeout = null;
+        const dataToSave = this._pendingSaveData;
+        const resolvers = this._pendingSaveResolvers;
+        this._pendingSaveResolvers = [];
+        const saveCall = async () => {
+          await this.saveData(dataToSave);
+          resolvers.forEach((r) => r());
+        };
+        if (!this._savePromise) {
+          this._savePromise = saveCall();
+        } else {
+          this._savePromise = this._savePromise.then(saveCall).catch(saveCall);
+        }
+      }, 1e3);
+    });
   }
   async saveSettings() {
     await this.saveDataQueued({ ...this.data, settings: this.settings });
