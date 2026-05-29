@@ -596,6 +596,7 @@ class TodoView extends ItemView {
 
 	renderCategoryBlock(container: HTMLElement, cat: Category) {
 		const block = container.createDiv('category-block');
+		block.setAttribute('data-category-id', cat.id);
 		const catHdr = block.createDiv('category-header');
 		if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || '#8a5cf5')) + '60';
 
@@ -730,6 +731,22 @@ class TodoView extends ItemView {
 		const row = container.createDiv(`todo-task${task.completed ? ' completed' : ''}`);
 		row.style.position = 'relative';
 		row.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context, e); };
+		
+		if (context === 'weekly' || context === 'daily') {
+			row.ondblclick = () => {
+				const catObj = this.data.categories.find(c => c.name === task.category);
+				if (!catObj) return;
+				
+				// Assumes contentEl is accessible or we can query within the document.
+				// Since we are in the plugin view, querying the DOM is fine.
+				const block = document.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
+				if (block) {
+					block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					block.classList.add('highlight-flash');
+					setTimeout(() => block.classList.remove('highlight-flash'), 1200);
+				}
+			};
+		}
 
 		const left = row.createDiv('task-left');
 		const checkbox = left.createDiv(`task-checkbox${task.completed ? ' checked' : ''}`);

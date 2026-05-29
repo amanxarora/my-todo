@@ -732,3 +732,32 @@
     pointer-events: none;
     font-family: var(--font-interface);
 }
+
+.highlight-flash {
+    animation: flash-bg 1.2s ease-out;
+}
+
+@keyframes flash-bg {
+    0% { background-color: var(--todo-tc-light); }
+    100% { background-color: transparent; }
+}
+
+.category-block.highlight-flash {
+    animation: flash-highlight 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+    will-change: transform, box-shadow;
+}
+
+@keyframes flash-highlight {
+    0% {
+        transform: scale(1);
+        box-shadow: inset 0 0 0 0 transparent, 0 4px 16px rgba(0, 0, 0, 0.18), 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
+    15% {
+        transform: scale(1.02);
+        box-shadow: inset 0 0 0 2px var(--todo-tc), 0 0 20px var(--todo-tc-mid), 0 0 10px var(--todo-tc);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: inset 0 0 0 0 transparent, 0 4px 16px rgba(0, 0, 0, 0.18), 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
+}
