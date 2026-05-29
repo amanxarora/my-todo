@@ -102,6 +102,19 @@ This is an active open-source project! If you encounter any bugs, have feature r
 
 ---
 
+## 🔗 Connect with Me
+
+I'm **Aman Arora**, a developer building tools to help people focus and create. If you like this plugin, let's connect!
+
+<p align="left">
+  <a href="https://github.com/amanxarora"><img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" /></a>
+  <a href="https://linkedin.com/in/YOUR_LINKEDIN_USERNAME"><img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" /></a>
+  <a href="https://instagram.com/YOUR_INSTAGRAM_USERNAME"><img src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white" alt="Instagram" /></a>
+  <a href="https://YOUR_WEBSITE_URL"><img src="https://img.shields.io/badge/Website-4CAF50?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Website" /></a>
+</p>
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
