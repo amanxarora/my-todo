@@ -104,7 +104,7 @@ This is an active open-source project! If you encounter any bugs, have feature r
 
 ## 🔗 Connect with Me
 
-I'm **Aman Arora**, an architect, designer, systems buuilding developer building tools to help people focus and create. If you like this plugin, let's connect!
+I'm **Aman Arora**, an architect, designer, systems building developer building tools to help people focus and create. If you like this plugin, let's connect!
 
 <p align="left">
   <a href="https://github.com/amanxarora"><img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" /></a>
