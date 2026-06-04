@@ -7,7 +7,7 @@
     <a href="https://obsidian.md"><img src="https://img.shields.io/badge/Obsidian-v1.0.0+-8a2be2?logo=obsidian&logoColor=white" alt="Obsidian Version" /></a>
     <a href="https://github.com/amanxarora/my-todo/releases"><img src="https://img.shields.io/github/v/release/amanxarora/my-todo?color=2ea44f&label=release" alt="Release Version" /></a>
     <a href="https://github.com/amanxarora/my-todo/blob/main/LICENSE"><img src="https://img.shields.io/github/license/amanxarora/my-todo?color=dfb317" alt="License" /></a>
-    <a href="https://github.com/amanxarora/my-todo/releases"><img src="https://img.shields.io/github/downloads/amanxarora/my-todo/total?color=0366d6" alt="Downloads" /></a>
+    <a href="https://github.com/amanxarora/my-todo/releases"><img src="https://badgen.net/github/assets-dl/amanxarora/my-todo?color=0366d6" alt="Downloads" /></a>
   </p>
 </div>
 
