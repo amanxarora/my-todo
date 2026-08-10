@@ -1,7 +1,7 @@
 {
   "id": "my-todo",
   "name": "My Todo",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minAppVersion": "0.15.0",
   "description": "Sorting based personal todo system with categories, weekly and daily planning",
   "author": "Aman Arora",

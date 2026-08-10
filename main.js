@@ -90,7 +90,23 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.createEl("p", { text: "Set the time when your day resets. Values are auto-clamped to valid range.", attr: { style: "color:var(--text-muted);font-size:13px;margin-bottom:16px;" } });
     let hourInput;
     let minuteInput;
-    new import_obsidian.Setting(containerEl).setName("End of day time").setDesc("Hour (0-23) and minute (0-59).").addText((text) => {
+    const saveTimeSettings = async () => {
+      let h = parseInt(hourInput.value);
+      let m = parseInt(minuteInput.value);
+      if (isNaN(h)) h = 0;
+      if (isNaN(m)) m = 0;
+      h = Math.min(23, Math.max(0, h));
+      m = Math.min(59, Math.max(0, m));
+      hourInput.value = String(h);
+      minuteInput.value = String(m);
+      if (this.plugin.settings.rolloverHour !== h || this.plugin.settings.rolloverMinute !== m) {
+        this.plugin.settings.rolloverHour = h;
+        this.plugin.settings.rolloverMinute = m;
+        await this.plugin.saveSettings();
+        this.updatePreview(containerEl);
+      }
+    };
+    new import_obsidian.Setting(containerEl).setName("End of day time").setDesc("Hour (0-23) and minute (0-59). Saves automatically on change or blur.").addText((text) => {
       hourInput = text.inputEl;
       text.inputEl.type = "number";
       text.inputEl.min = "0";
@@ -99,6 +115,8 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       text.inputEl.style.marginRight = "8px";
       text.inputEl.placeholder = "hr";
       text.setValue(String(this.plugin.settings.rolloverHour));
+      text.onChange(() => saveTimeSettings());
+      text.inputEl.addEventListener("blur", () => saveTimeSettings());
     }).addText((text) => {
       minuteInput = text.inputEl;
       text.inputEl.type = "number";
@@ -108,23 +126,8 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       text.inputEl.style.marginRight = "8px";
       text.inputEl.placeholder = "min";
       text.setValue(String(this.plugin.settings.rolloverMinute));
-    }).addButton((btn) => {
-      btn.setButtonText("Save").setCta();
-      btn.onClick(async () => {
-        let h = parseInt(hourInput.value);
-        let m = parseInt(minuteInput.value);
-        if (isNaN(h)) h = 0;
-        if (isNaN(m)) m = 0;
-        h = Math.min(23, Math.max(0, h));
-        m = Math.min(59, Math.max(0, m));
-        hourInput.value = String(h);
-        minuteInput.value = String(m);
-        this.plugin.settings.rolloverHour = h;
-        this.plugin.settings.rolloverMinute = m;
-        await this.plugin.saveSettings();
-        this.updatePreview(containerEl);
-        new import_obsidian.Notice(`\u2713 Day reset time saved: ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-      });
+      text.onChange(() => saveTimeSettings());
+      text.inputEl.addEventListener("blur", () => saveTimeSettings());
     });
     this.updatePreview(containerEl);
     new import_obsidian.Setting(containerEl).setName("Show archive section").setDesc("Display completed task archive inside the plugin. Off by default.").addToggle(
@@ -204,11 +207,18 @@ var TodoView = class extends import_obsidian.ItemView {
   }
   async onOpen() {
     this.data = this.plugin.data;
-    this.runDayRollover();
+    await this.runDayRollover();
     this.render();
     this.registerDomEvent(document, "click", (e) => {
       if (this.activeMenu && !this.activeMenu.contains(e.target)) {
         this.closeActiveMenu();
+      }
+    });
+    const container = this.containerEl.children[1];
+    this.registerDomEvent(container, "scroll", () => {
+      const btn = container.querySelector(".todo-back-to-top");
+      if (btn) {
+        btn.style.display = container.scrollTop > 150 ? "flex" : "none";
       }
     });
   }
@@ -218,7 +228,42 @@ var TodoView = class extends import_obsidian.ItemView {
     this.plugin.saveDataQueued({ ...this.data, settings: this.plugin.settings });
   }
   // ─── Rollover ─────────────────────────────────────────────────────────────
-  runDayRollover() {
+  async archiveCompletedTasksToNote(tasks) {
+    const { vault } = this.plugin.app;
+    const dateStr = todayIso();
+    const lines = tasks.map((t) => {
+      const catObj = this.data.categories.find((c) => c.id === t.categoryId);
+      const tagStr = catTag(t.category, catObj?.customTag);
+      return `- [x] ${t.text} (${t.estimatedHours}h) - ${tagStr} [completed: ${t.completedDate || dateStr}]`;
+    }).join("\n");
+    const archivePath = `${NOTES_FOLDER}/Archive.md`;
+    const content = `
+### Rollover ${toDisplayDate(dateStr)}
+${lines}
+`;
+    try {
+      await vault.createFolder(NOTES_FOLDER);
+    } catch {
+    }
+    try {
+      const existing = vault.getAbstractFileByPath(archivePath);
+      if (existing instanceof import_obsidian.TFile) {
+        const currentContent = await vault.read(existing);
+        await vault.modify(existing, currentContent + content);
+      } else {
+        const header = `---
+tags: [my-todo-archive]
+---
+
+# Completed Tasks Archive
+`;
+        await vault.create(archivePath, header + content);
+      }
+    } catch (e) {
+      new import_obsidian.Notice("Failed to archive tasks: " + e);
+    }
+  }
+  async runDayRollover() {
     const { rolloverHour, rolloverMinute } = this.plugin.settings;
     const logicalDay = getLogicalDay(rolloverHour, rolloverMinute);
     if (this.data.lastRolloverDate === logicalDay) return;
@@ -235,6 +280,12 @@ var TodoView = class extends import_obsidian.ItemView {
         existing.completedHours = completed;
         existing.score = score;
       } else this.data.scores.push({ date: prevDay, plannedHours: planned, completedHours: completed, score });
+    }
+    if (this.plugin.settings.archiveEnabled) {
+      const completedTasks = this.data.categories.flatMap((c) => c.tasks).filter((t) => t.completed);
+      if (completedTasks.length > 0) {
+        await this.archiveCompletedTasksToNote(completedTasks);
+      }
     }
     for (const cat of this.data.categories) cat.tasks = cat.tasks.filter((t) => !t.completed);
     for (const cat of this.data.categories) for (const task of cat.tasks) if (task.inDaily && !task.completed) task.inDaily = false;
@@ -313,7 +364,7 @@ var TodoView = class extends import_obsidian.ItemView {
   addTask(categoryId, text, hours, dueDate) {
     const cat = this.data.categories.find((c) => c.id === categoryId);
     if (!cat) return;
-    cat.tasks.push({ id: this.generateId(), text, estimatedHours: hours, dueDate, category: cat.name, inWeekly: false, inDaily: false, completed: false, createdDate: todayIso() });
+    cat.tasks.push({ id: this.generateId(), text, estimatedHours: hours, dueDate, category: cat.name, categoryId: cat.id, inWeekly: false, inDaily: false, completed: false, createdDate: todayIso() });
     this.save();
     this.render();
   }
@@ -454,6 +505,7 @@ ${taskList}
     this.data = this.plugin.data;
     const container = this.containerEl.children[1];
     if (container.querySelector("input:focus")) return;
+    const scrollTop = container.scrollTop;
     container.empty();
     const tc = this.plugin.settings.themeColor || "#8a5cf5";
     const tcLight = tc + "20";
@@ -474,6 +526,13 @@ ${taskList}
     this.renderWeekly(root);
     this.renderCategories(root);
     this.renderHeatmap(root);
+    const backToTop = container.createEl("button", { cls: "todo-back-to-top", text: "\u25B2" });
+    backToTop.title = "Back to top";
+    backToTop.style.display = scrollTop > 150 ? "flex" : "none";
+    backToTop.onclick = () => {
+      container.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    container.scrollTop = scrollTop;
   }
   renderHeader(root) {
     const { rolloverHour, rolloverMinute } = this.plugin.settings;
@@ -597,6 +656,20 @@ ${taskList}
     hoursInput.min = "0.25";
     hoursInput.step = "0.25";
     const dateInput = row2.createEl("input", { type: "date", cls: "date-input" });
+    const todayBtn = row2.createEl("button", { text: "Today", cls: "date-shortcut-btn" });
+    todayBtn.type = "button";
+    todayBtn.onclick = (e) => {
+      e.preventDefault();
+      dateInput.value = todayIso();
+    };
+    const tomorrowBtn = row2.createEl("button", { text: "Tomorrow", cls: "date-shortcut-btn" });
+    tomorrowBtn.type = "button";
+    tomorrowBtn.onclick = (e) => {
+      e.preventDefault();
+      const tomorrow = /* @__PURE__ */ new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dateInput.value = localIso(tomorrow);
+    };
     const actions = form.createDiv("add-task-form-actions");
     const cancelBtn = actions.createEl("button", { text: "Cancel", cls: "cancel-task-btn" });
     const addBtn = actions.createEl("button", { text: "Add", cls: "add-task-btn" });
@@ -746,7 +819,7 @@ ${taskList}
     };
     if (context === "weekly" || context === "daily") {
       row.ondblclick = () => {
-        const catObj = this.data.categories.find((c) => c.name === task.category);
+        const catObj = this.data.categories.find((c) => c.id === task.categoryId);
         if (!catObj) return;
         const block = document.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
         if (block) {
@@ -775,8 +848,9 @@ ${taskList}
       }
     }
     if (context === "weekly" || context === "daily") {
-      const taskCat = this.data.categories.find((c) => c.name === task.category);
-      badges.createEl("span", { cls: "task-cat-tag", text: catTag(task.category, taskCat?.customTag) });
+      const taskCat = this.data.categories.find((c) => c.id === task.categoryId);
+      const displayName = taskCat ? taskCat.name : task.category;
+      badges.createEl("span", { cls: "task-cat-tag", text: catTag(displayName, taskCat?.customTag) });
     }
     const actionsEl = row.createDiv("task-actions");
     if (context === "category") {
@@ -926,6 +1000,13 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
   async onload() {
     const saved = await this.loadData();
     this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? "" };
+    for (const cat of this.data.categories) {
+      for (const task of cat.tasks) {
+        if (!task.categoryId) {
+          task.categoryId = cat.id;
+        }
+      }
+    }
     this.settings = { ...DEFAULT_SETTINGS, ...saved?.settings ?? {} };
     if (!this.settings.themeColor) this.settings.themeColor = "#8a5cf5";
     this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
@@ -978,6 +1059,16 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
     await this.saveDataQueued({ ...this.data, settings: this.settings });
   }
   async onunload() {
+    if (this._saveTimeout) {
+      window.clearTimeout(this._saveTimeout);
+      this._saveTimeout = null;
+    }
+    if (this._pendingSaveData) {
+      await this.saveData(this._pendingSaveData);
+      this._pendingSaveResolvers.forEach((r) => r());
+      this._pendingSaveResolvers = [];
+      this._pendingSaveData = null;
+    }
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
   }
   async activateView() {
