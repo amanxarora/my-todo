@@ -6,5 +6,5 @@
   "description": "Sorting based personal todo system with categories, weekly and daily planning",
   "author": "Aman Arora",
   "authorUrl": "https://github.com/AmanArora",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }

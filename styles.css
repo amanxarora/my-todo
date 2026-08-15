@@ -767,6 +767,17 @@
     .categories-kanban {
         grid-template-columns: 1fr;
     }
+    .my-todo-root {
+        padding: 16px 12px;
+    }
+    .task-checkbox {
+        width: 18px;
+        height: 18px;
+        margin-top: 0;
+    }
+    .task-checkbox.checked::after {
+        font-size: 11px;
+    }
 }
 
 /* Date Selection Quick Buttons */
