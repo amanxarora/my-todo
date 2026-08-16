@@ -810,6 +810,20 @@ class TodoView extends ItemView {
 		row.style.position = 'relative';
 		row.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context, e); };
 		
+		if (context === 'weekly' || context === 'daily') {
+			row.ondblclick = () => {
+				const catObj = this.data.categories.find(c => c.id === task.categoryId);
+				if (!catObj) return;
+				
+				const block = document.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
+				if (block) {
+					block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					block.classList.add('highlight-flash');
+					setTimeout(() => block.classList.remove('highlight-flash'), 1200);
+				}
+			};
+		}
+
 		const left = row.createDiv('task-left');
 		const checkbox = left.createDiv(`task-checkbox${task.completed ? ' checked' : ''}`);
 		checkbox.onclick = () => this.toggleComplete(task.id);
