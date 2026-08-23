@@ -1,7 +1,24 @@
 var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b ||= {})
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -15,6 +32,26 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var __async = (__this, __arguments, generator) => {
+  return new Promise((resolve, reject) => {
+    var fulfilled = (value) => {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var rejected = (value) => {
+      try {
+        step(generator.throw(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    step((generator = generator.apply(__this, __arguments)).next());
+  });
+};
 
 // src/main.ts
 var main_exports = {};
@@ -53,7 +90,8 @@ var VIEW_TYPE = "my-todo-view";
 var NOTES_FOLDER = "My Todo Notes";
 var TAGS_NOTE = "My Todo Notes/_tags.md";
 function toDisplayDate(isoDate) {
-  if (!isoDate) return "";
+  if (!isoDate)
+    return "";
   const [y, m, d] = isoDate.split("-");
   return `${d}-${m}-${y}`;
 }
@@ -64,7 +102,8 @@ function todayIso() {
   return localIso(/* @__PURE__ */ new Date());
 }
 function catTag(name, customTag) {
-  if (customTag) return customTag.startsWith("#") ? customTag : "#" + customTag;
+  if (customTag)
+    return customTag.startsWith("#") ? customTag : "#" + customTag;
   return "#" + name.replace(/\s+/g, "-").toLowerCase();
 }
 function getLogicalDay(rolloverHour, rolloverMinute) {
@@ -78,6 +117,30 @@ function getLogicalDay(rolloverHour, rolloverMinute) {
   }
   return todayIso();
 }
+var ConfirmModal = class extends import_obsidian.Modal {
+  constructor(app, message, onConfirm) {
+    super(app);
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("p", { text: this.message });
+    const actions = contentEl.createDiv("modal-button-container");
+    const cancelBtn = actions.createEl("button", { text: "Cancel" });
+    cancelBtn.onclick = () => this.close();
+    const confirmBtn = actions.createEl("button", { text: "Delete", cls: "mod-warning" });
+    confirmBtn.onclick = () => {
+      this.close();
+      this.onConfirm();
+    };
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
 var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -86,15 +149,17 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "My Todo Settings" });
+    new import_obsidian.Setting(containerEl).setName("My Todo Settings").setHeading();
     containerEl.createEl("p", { text: "Set the time when your day resets. Values are auto-clamped to valid range.", attr: { style: "color:var(--text-muted);font-size:13px;margin-bottom:16px;" } });
     let hourInput;
     let minuteInput;
-    const saveTimeSettings = async () => {
+    const saveTimeSettings = () => __async(this, null, function* () {
       let h = parseInt(hourInput.value);
       let m = parseInt(minuteInput.value);
-      if (isNaN(h)) h = 0;
-      if (isNaN(m)) m = 0;
+      if (isNaN(h))
+        h = 0;
+      if (isNaN(m))
+        m = 0;
       h = Math.min(23, Math.max(0, h));
       m = Math.min(59, Math.max(0, m));
       hourInput.value = String(h);
@@ -102,17 +167,16 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       if (this.plugin.settings.rolloverHour !== h || this.plugin.settings.rolloverMinute !== m) {
         this.plugin.settings.rolloverHour = h;
         this.plugin.settings.rolloverMinute = m;
-        await this.plugin.saveSettings();
+        yield this.plugin.saveSettings();
         this.updatePreview(containerEl);
       }
-    };
+    });
     new import_obsidian.Setting(containerEl).setName("End of day time").setDesc("Hour (0-23) and minute (0-59). Saves automatically on change or blur.").addText((text) => {
       hourInput = text.inputEl;
       text.inputEl.type = "number";
       text.inputEl.min = "0";
       text.inputEl.max = "23";
-      text.inputEl.style.width = "60px";
-      text.inputEl.style.marginRight = "8px";
+      text.inputEl.addClass("todo-time-input");
       text.inputEl.placeholder = "hr";
       text.setValue(String(this.plugin.settings.rolloverHour));
       text.onChange(() => saveTimeSettings());
@@ -122,8 +186,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
       text.inputEl.max = "59";
-      text.inputEl.style.width = "60px";
-      text.inputEl.style.marginRight = "8px";
+      text.inputEl.addClass("todo-time-input");
       text.inputEl.placeholder = "min";
       text.setValue(String(this.plugin.settings.rolloverMinute));
       text.onChange(() => saveTimeSettings());
@@ -131,23 +194,23 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
     });
     this.updatePreview(containerEl);
     new import_obsidian.Setting(containerEl).setName("Show archive section").setDesc("Display completed task archive inside the plugin. Off by default.").addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.archiveEnabled).onChange(async (val) => {
+      (toggle) => toggle.setValue(this.plugin.settings.archiveEnabled).onChange((val) => __async(this, null, function* () {
         this.plugin.settings.archiveEnabled = val;
-        await this.plugin.saveSettings();
-      })
+        yield this.plugin.saveSettings();
+      }))
     );
     new import_obsidian.Setting(containerEl).setName("Category Sort Order").setDesc("How should your categories be ordered? You can also pin up to 2 categories to the top.").addDropdown(
-      (drop) => drop.addOption("manual", "Manual (Drag and Drop)").addOption("alpha-asc", "Alphabetical (A-Z)").addOption("alpha-desc", "Alphabetical (Z-A)").addOption("date-asc", "Date Created (Oldest First)").addOption("date-desc", "Date Created (Newest First)").setValue(this.plugin.settings.sortOrder).onChange(async (val) => {
+      (drop) => drop.addOption("manual", "Manual (Drag and Drop)").addOption("alpha-asc", "Alphabetical (A-Z)").addOption("alpha-desc", "Alphabetical (Z-A)").addOption("date-asc", "Date Created (Oldest First)").addOption("date-desc", "Date Created (Newest First)").setValue(this.plugin.settings.sortOrder).onChange((val) => __async(this, null, function* () {
         this.plugin.settings.sortOrder = val;
-        await this.plugin.saveSettings();
+        yield this.plugin.saveSettings();
         this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
           const view = v.view;
-          if (view?.render) view.render();
+          if (view == null ? void 0 : view.render)
+            view.render();
         });
-      })
+      }))
     );
-    containerEl.createEl("h3", { text: "Theme Color", attr: { style: 'margin-top:24px;margin-bottom:8px;font-family:"Century Gothic","AppleGothic","Trebuchet MS",sans-serif;' } });
-    containerEl.createEl("p", { text: "Choose the accent color used throughout the plugin.", attr: { style: "color:var(--text-muted);font-size:13px;margin-bottom:12px;" } });
+    new import_obsidian.Setting(containerEl).setName("Theme Color").setDesc("Choose the accent color used throughout the plugin.").setHeading();
     const THEME_COLORS = [
       { label: "Purple", value: "#8a5cf5" },
       { label: "Blue", value: "#3b82f6" },
@@ -157,36 +220,36 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       { label: "Red", value: "#ef4444" },
       { label: "Orange", value: "#f97316" }
     ];
-    const swatchWrap = containerEl.createDiv();
-    swatchWrap.style.cssText = "display:flex;gap:12px;flex-wrap:wrap;align-items:center;";
+    const swatchWrap = containerEl.createDiv("todo-swatch-wrap");
     THEME_COLORS.forEach((tc) => {
-      const swatch = swatchWrap.createDiv();
-      swatch.style.cssText = `width:28px;height:28px;border-radius:50%;background:${tc.value};cursor:pointer;border:3px solid ${this.plugin.settings.themeColor === tc.value ? "white" : "transparent"};transition:border-color 0.15s,transform 0.15s;box-shadow:0 2px 8px rgba(0,0,0,0.3);`;
+      const swatch = swatchWrap.createDiv(`todo-swatch${this.plugin.settings.themeColor === tc.value ? " is-active" : ""}`);
+      swatch.style.setProperty("--swatch-color", tc.value);
       swatch.title = tc.label;
-      swatch.onclick = async () => {
+      swatch.onclick = () => __async(this, null, function* () {
         this.plugin.settings.themeColor = tc.value;
-        await this.plugin.saveSettings();
-        swatchWrap.querySelectorAll("div").forEach((s, i) => {
-          s.style.borderColor = THEME_COLORS[i].value === tc.value ? "white" : "transparent";
+        yield this.plugin.saveSettings();
+        swatchWrap.querySelectorAll(".todo-swatch").forEach((s, i) => {
+          s.classList.toggle("is-active", THEME_COLORS[i].value === tc.value);
         });
         this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
           const view = v.view;
-          if (view?.render) {
+          if (view == null ? void 0 : view.render) {
             view.data = this.plugin.data;
             view.render();
           }
         });
         new import_obsidian.Notice(`Theme color set to ${tc.label}`);
-      };
+      });
       swatchWrap.appendChild(swatch);
     });
   }
   updatePreview(containerEl) {
     const existing = containerEl.querySelector(".rollover-preview");
-    if (existing) existing.remove();
+    if (existing)
+      existing.remove();
     const h = String(this.plugin.settings.rolloverHour).padStart(2, "0");
     const m = String(this.plugin.settings.rolloverMinute).padStart(2, "0");
-    containerEl.createEl("p", { text: `\u2713 Day resets at ${h}:${m}`, attr: { class: "rollover-preview", style: "color:#8a5cf5;font-size:13px;margin-top:8px;margin-bottom:16px;" } });
+    containerEl.createEl("p", { text: `\u2713 Day resets at ${h}:${m}`, cls: "rollover-preview" });
   }
 };
 var TodoView = class extends import_obsidian.ItemView {
@@ -205,93 +268,107 @@ var TodoView = class extends import_obsidian.ItemView {
   getIcon() {
     return "check-square";
   }
-  async onOpen() {
-    this.data = this.plugin.data;
-    await this.runDayRollover();
-    this.render();
-    this.registerDomEvent(document, "click", (e) => {
-      if (this.activeMenu && !this.activeMenu.contains(e.target)) {
-        this.closeActiveMenu();
-      }
-    });
-    const container = this.containerEl.children[1];
-    this.registerDomEvent(container, "scroll", () => {
-      const btn = container.querySelector(".todo-back-to-top");
-      if (btn) {
-        btn.style.display = container.scrollTop > 150 ? "flex" : "none";
-      }
+  onOpen() {
+    return __async(this, null, function* () {
+      this.data = this.plugin.data;
+      yield this.runDayRollover();
+      this.render();
+      this.registerDomEvent(document, "click", (e) => {
+        if (this.activeMenu && !this.activeMenu.contains(e.target)) {
+          this.closeActiveMenu();
+        }
+      });
+      const container = this.containerEl.children[1];
+      this.registerDomEvent(container, "scroll", () => {
+        const btn = container.querySelector(".todo-back-to-top");
+        if (btn) {
+          btn.classList.toggle("is-visible", container.scrollTop > 150);
+          btn.classList.toggle("is-hidden", container.scrollTop <= 150);
+        }
+      });
     });
   }
   save(skipUpdateScore = false) {
     this.plugin.data = this.data;
-    if (!skipUpdateScore) this.updateScore();
-    this.plugin.saveDataQueued({ ...this.data, settings: this.plugin.settings });
+    if (!skipUpdateScore)
+      this.updateScore();
+    this.plugin.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.plugin.settings }));
   }
   // ─── Rollover ─────────────────────────────────────────────────────────────
-  async archiveCompletedTasksToNote(tasks) {
-    const { vault } = this.plugin.app;
-    const dateStr = todayIso();
-    const lines = tasks.map((t) => {
-      const catObj = this.data.categories.find((c) => c.id === t.categoryId);
-      const tagStr = catTag(t.category, catObj?.customTag);
-      return `- [x] ${t.text} (${t.estimatedHours}h) - ${tagStr} [completed: ${t.completedDate || dateStr}]`;
-    }).join("\n");
-    const archivePath = `${NOTES_FOLDER}/Archive.md`;
-    const content = `
+  archiveCompletedTasksToNote(tasks) {
+    return __async(this, null, function* () {
+      const { vault } = this.plugin.app;
+      const dateStr = todayIso();
+      const lines = tasks.map((t) => {
+        const catObj = this.data.categories.find((c) => c.id === t.categoryId);
+        const tagStr = catTag(t.category, catObj == null ? void 0 : catObj.customTag);
+        return `- [x] ${t.text} (${t.estimatedHours}h) - ${tagStr} [completed: ${t.completedDate || dateStr}]`;
+      }).join("\n");
+      const archivePath = `${NOTES_FOLDER}/Archive.md`;
+      const content = `
 ### Rollover ${toDisplayDate(dateStr)}
 ${lines}
 `;
-    try {
-      await vault.createFolder(NOTES_FOLDER);
-    } catch {
-    }
-    try {
-      const existing = vault.getAbstractFileByPath(archivePath);
-      if (existing instanceof import_obsidian.TFile) {
-        const currentContent = await vault.read(existing);
-        await vault.modify(existing, currentContent + content);
-      } else {
-        const header = `---
+      try {
+        yield vault.createFolder(NOTES_FOLDER);
+      } catch (e) {
+      }
+      try {
+        const existing = vault.getAbstractFileByPath(archivePath);
+        if (existing instanceof import_obsidian.TFile) {
+          const currentContent = yield vault.read(existing);
+          yield vault.modify(existing, currentContent + content);
+        } else {
+          const header = `---
 tags: [my-todo-archive]
 ---
 
 # Completed Tasks Archive
 `;
-        await vault.create(archivePath, header + content);
+          yield vault.create(archivePath, header + content);
+        }
+      } catch (e) {
+        new import_obsidian.Notice("Failed to archive tasks: " + e);
       }
-    } catch (e) {
-      new import_obsidian.Notice("Failed to archive tasks: " + e);
-    }
+    });
   }
-  async runDayRollover() {
-    const { rolloverHour, rolloverMinute } = this.plugin.settings;
-    const logicalDay = getLogicalDay(rolloverHour, rolloverMinute);
-    if (this.data.lastRolloverDate === logicalDay) return;
-    const prevDay = this.data.lastRolloverDate;
-    if (prevDay) {
-      const allTasks = this.data.categories.flatMap((c) => c.tasks);
-      const dailyTasks = allTasks.filter((t) => t.inDaily);
-      const planned = dailyTasks.reduce((s, t) => s + t.estimatedHours, 0);
-      const completed = dailyTasks.filter((t) => t.completed).reduce((s, t) => s + t.estimatedHours, 0);
-      const score = planned === 0 ? 0 : Math.round(completed / planned * 100);
-      const existing = this.data.scores.find((s) => s.date === prevDay);
-      if (existing) {
-        existing.plannedHours = planned;
-        existing.completedHours = completed;
-        existing.score = score;
-      } else this.data.scores.push({ date: prevDay, plannedHours: planned, completedHours: completed, score });
-    }
-    if (this.plugin.settings.archiveEnabled) {
-      const completedTasks = this.data.categories.flatMap((c) => c.tasks).filter((t) => t.completed);
-      if (completedTasks.length > 0) {
-        await this.archiveCompletedTasksToNote(completedTasks);
+  runDayRollover() {
+    return __async(this, null, function* () {
+      const { rolloverHour, rolloverMinute } = this.plugin.settings;
+      const logicalDay = getLogicalDay(rolloverHour, rolloverMinute);
+      if (this.data.lastRolloverDate === logicalDay)
+        return;
+      const prevDay = this.data.lastRolloverDate;
+      if (prevDay) {
+        const allTasks = this.data.categories.flatMap((c) => c.tasks);
+        const dailyTasks = allTasks.filter((t) => t.inDaily);
+        const planned = dailyTasks.reduce((s, t) => s + t.estimatedHours, 0);
+        const completed = dailyTasks.filter((t) => t.completed).reduce((s, t) => s + t.estimatedHours, 0);
+        const score = planned === 0 ? 0 : Math.round(completed / planned * 100);
+        const existing = this.data.scores.find((s) => s.date === prevDay);
+        if (existing) {
+          existing.plannedHours = planned;
+          existing.completedHours = completed;
+          existing.score = score;
+        } else
+          this.data.scores.push({ date: prevDay, plannedHours: planned, completedHours: completed, score });
       }
-    }
-    for (const cat of this.data.categories) cat.tasks = cat.tasks.filter((t) => !t.completed);
-    for (const cat of this.data.categories) for (const task of cat.tasks) if (task.inDaily && !task.completed) task.inDaily = false;
-    this.data.lastRolloverDate = logicalDay;
-    this.save(true);
-    new import_obsidian.Notice("\u{1F305} Day rolled over.");
+      if (this.plugin.settings.archiveEnabled) {
+        const completedTasks = this.data.categories.flatMap((c) => c.tasks).filter((t) => t.completed);
+        if (completedTasks.length > 0) {
+          yield this.archiveCompletedTasksToNote(completedTasks);
+        }
+      }
+      for (const cat of this.data.categories)
+        cat.tasks = cat.tasks.filter((t) => !t.completed);
+      for (const cat of this.data.categories)
+        for (const task of cat.tasks)
+          if (task.inDaily && !task.completed)
+            task.inDaily = false;
+      this.data.lastRolloverDate = logicalDay;
+      this.save(true);
+      new import_obsidian.Notice("\u{1F305} Day rolled over.");
+    });
   }
   updateScore() {
     const { rolloverHour, rolloverMinute } = this.plugin.settings;
@@ -305,7 +382,8 @@ tags: [my-todo-archive]
       existing.plannedHours = planned;
       existing.completedHours = completed;
       existing.score = score;
-    } else this.data.scores.push({ date: today, plannedHours: planned, completedHours: completed, score });
+    } else
+      this.data.scores.push({ date: today, plannedHours: planned, completedHours: completed, score });
   }
   getAllTasks() {
     return this.data.categories.flatMap((c) => c.tasks);
@@ -323,20 +401,24 @@ tags: [my-todo-archive]
     return "task-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
   }
   getOverdueStatus(task) {
-    if (task.completed || !task.dueDate) return "none";
+    if (task.completed || !task.dueDate)
+      return "none";
     const today = /* @__PURE__ */ new Date();
     today.setHours(0, 0, 0, 0);
     const [y, m, d] = task.dueDate.split("-").map(Number);
     const due = new Date(y, m - 1, d, 0, 0, 0, 0);
     const diff = Math.floor((today.getTime() - due.getTime()) / 864e5);
-    if (diff >= 3) return "red";
-    if (diff >= 1) return "orange";
+    if (diff >= 3)
+      return "red";
+    if (diff >= 1)
+      return "orange";
     return "none";
   }
   // ─── Actions ──────────────────────────────────────────────────────────────
   toggleComplete(taskId) {
     const task = this.getTaskById(taskId);
-    if (!task) return;
+    if (!task)
+      return;
     task.completed = !task.completed;
     task.completedDate = task.completed ? todayIso() : void 0;
     this.save();
@@ -344,15 +426,18 @@ tags: [my-todo-archive]
   }
   toggleWeekly(taskId) {
     const task = this.getTaskById(taskId);
-    if (!task) return;
+    if (!task)
+      return;
     task.inWeekly = !task.inWeekly;
-    if (!task.inWeekly) task.inDaily = false;
+    if (!task.inWeekly)
+      task.inDaily = false;
     this.save();
     this.render();
   }
   toggleDaily(taskId) {
     const task = this.getTaskById(taskId);
-    if (!task) return;
+    if (!task)
+      return;
     if (!task.inWeekly) {
       new import_obsidian.Notice("Add to Weekly first.");
       return;
@@ -363,14 +448,16 @@ tags: [my-todo-archive]
   }
   addTask(categoryId, text, hours, dueDate) {
     const cat = this.data.categories.find((c) => c.id === categoryId);
-    if (!cat) return;
+    if (!cat)
+      return;
     cat.tasks.push({ id: this.generateId(), text, estimatedHours: hours, dueDate, category: cat.name, categoryId: cat.id, inWeekly: false, inDaily: false, completed: false, createdDate: todayIso() });
     this.save();
     this.render();
   }
   editTask(taskId, text, hours, dueDate) {
     const task = this.getTaskById(taskId);
-    if (!task) return;
+    if (!task)
+      return;
     task.text = text;
     task.estimatedHours = hours;
     task.dueDate = dueDate;
@@ -378,7 +465,8 @@ tags: [my-todo-archive]
     this.render();
   }
   deleteTask(taskId) {
-    for (const cat of this.data.categories) cat.tasks = cat.tasks.filter((t) => t.id !== taskId);
+    for (const cat of this.data.categories)
+      cat.tasks = cat.tasks.filter((t) => t.id !== taskId);
     this.save();
     this.render();
   }
@@ -396,7 +484,8 @@ tags: [my-todo-archive]
   }
   renameTag(catId, newTag) {
     const cat = this.data.categories.find((c) => c.id === catId);
-    if (!cat) return;
+    if (!cat)
+      return;
     const clean = newTag.trim().replace(/\s+/g, "-");
     cat.customTag = clean.startsWith("#") ? clean : "#" + clean;
     this.updateTagsNote();
@@ -405,7 +494,8 @@ tags: [my-todo-archive]
   }
   renameCategory(catId, newName) {
     const cat = this.data.categories.find((c) => c.id === catId);
-    if (!cat) return;
+    if (!cat)
+      return;
     cat.name = newName;
     cat.tasks.forEach((t) => t.category = newName);
     this.updateTagsNote();
@@ -414,30 +504,34 @@ tags: [my-todo-archive]
   }
   setCategoryColor(catId, color) {
     const cat = this.data.categories.find((c) => c.id === catId);
-    if (!cat) return;
+    if (!cat)
+      return;
     cat.color = color;
     this.save();
     this.render();
   }
   moveCategoryUp(catId) {
     const idx = this.data.categories.findIndex((c) => c.id === catId);
-    if (idx <= 0) return;
+    if (idx <= 0)
+      return;
     [this.data.categories[idx - 1], this.data.categories[idx]] = [this.data.categories[idx], this.data.categories[idx - 1]];
     this.save();
     this.render();
   }
   moveCategoryDown(catId) {
     const idx = this.data.categories.findIndex((c) => c.id === catId);
-    if (idx >= this.data.categories.length - 1) return;
+    if (idx >= this.data.categories.length - 1)
+      return;
     [this.data.categories[idx + 1], this.data.categories[idx]] = [this.data.categories[idx], this.data.categories[idx + 1]];
     this.save();
     this.render();
   }
   // ─── Note creation ────────────────────────────────────────────────────────
-  async updateTagsNote() {
-    const { vault } = this.plugin.app;
-    const tags = this.data.categories.map((c) => catTag(c.name, c.customTag)).join("\n");
-    const content = `---
+  updateTagsNote() {
+    return __async(this, null, function* () {
+      const { vault } = this.plugin.app;
+      const tags = this.data.categories.map((c) => catTag(c.name, c.customTag)).join("\n");
+      const content = `---
 tags: [my-todo]
 ---
 
@@ -445,19 +539,23 @@ tags: [my-todo]
 
 ${tags}
 `;
-    try {
-      await vault.createFolder(NOTES_FOLDER);
-    } catch {
-    }
-    const existing = vault.getAbstractFileByPath(TAGS_NOTE);
-    if (existing instanceof import_obsidian.TFile) await vault.modify(existing, content);
-    else await vault.create(TAGS_NOTE, content);
+      try {
+        yield vault.createFolder(NOTES_FOLDER);
+      } catch (e) {
+      }
+      const existing = vault.getAbstractFileByPath(TAGS_NOTE);
+      if (existing instanceof import_obsidian.TFile)
+        yield vault.modify(existing, content);
+      else
+        yield vault.create(TAGS_NOTE, content);
+    });
   }
-  async createCategoryNote(cat) {
-    const { vault, workspace } = this.plugin.app;
-    const tag = catTag(cat.name, cat.customTag);
-    const taskList = cat.tasks.length > 0 ? cat.tasks.map((t) => `- [ ] ${t.text} (${t.estimatedHours}h)`).join("\n") : "_No tasks yet._";
-    const content = `---
+  createCategoryNote(cat) {
+    return __async(this, null, function* () {
+      const { vault, workspace } = this.plugin.app;
+      const tag = catTag(cat.name, cat.customTag);
+      const taskList = cat.tasks.length > 0 ? cat.tasks.map((t) => `- [ ] ${t.text} (${t.estimatedHours}h)`).join("\n") : "_No tasks yet._";
+      const content = `---
 tags: [${tag.slice(1)}]
 ---
 
@@ -469,34 +567,37 @@ ${tag}
 
 ${taskList}
 `;
-    const safeName = cat.name.replace(/[\\/:*?"<>|.]/g, "-");
-    const path = `${NOTES_FOLDER}/${safeName}.md`;
-    try {
-      await vault.createFolder(NOTES_FOLDER);
-    } catch {
-    }
-    try {
-      const existing = vault.getAbstractFileByPath(path);
-      if (existing instanceof import_obsidian.TFile) {
-        await vault.modify(existing, content);
-        new import_obsidian.Notice(`Updated note: ${cat.name}`);
-      } else {
-        const file2 = await vault.create(path, content);
-        new import_obsidian.Notice(`Created note: ${cat.name}`);
+      const safeName = cat.name.replace(/[\\/:*?"<>|.]/g, "-");
+      const path = `${NOTES_FOLDER}/${safeName}.md`;
+      try {
+        yield vault.createFolder(NOTES_FOLDER);
+      } catch (e) {
       }
-      const leaf = workspace.getLeaf(true);
-      const file = vault.getAbstractFileByPath(path);
-      if (file instanceof import_obsidian.TFile) await leaf.openFile(file);
-    } catch (e) {
-      new import_obsidian.Notice("Could not create note: " + e);
-    }
+      try {
+        const existing = vault.getAbstractFileByPath(path);
+        if (existing instanceof import_obsidian.TFile) {
+          yield vault.modify(existing, content);
+          new import_obsidian.Notice(`Updated note: ${cat.name}`);
+        } else {
+          const file2 = yield vault.create(path, content);
+          new import_obsidian.Notice(`Created note: ${cat.name}`);
+        }
+        const leaf = workspace.getLeaf(true);
+        const file = vault.getAbstractFileByPath(path);
+        if (file instanceof import_obsidian.TFile)
+          yield leaf.openFile(file);
+      } catch (e) {
+        new import_obsidian.Notice("Could not create note: " + e);
+      }
+    });
   }
   getAllVaultNotes() {
     return this.plugin.app.vault.getMarkdownFiles().map((f) => f.basename).sort();
   }
   closeActiveMenu() {
     if (this.activeMenu) {
-      if (this.activeMenu.parentNode) this.activeMenu.parentNode.removeChild(this.activeMenu);
+      if (this.activeMenu.parentNode)
+        this.activeMenu.parentNode.removeChild(this.activeMenu);
       this.activeMenu = null;
     }
   }
@@ -504,7 +605,8 @@ ${taskList}
   render() {
     this.data = this.plugin.data;
     const container = this.containerEl.children[1];
-    if (container.querySelector("input:focus")) return;
+    if (container.querySelector("input:focus"))
+      return;
     const scrollTop = container.scrollTop;
     container.empty();
     const tc = this.plugin.settings.themeColor || "#8a5cf5";
@@ -512,9 +614,7 @@ ${taskList}
     const tcMid = tc + "40";
     const tcFaint = tc + "18";
     const tcFaint15 = tc + "15";
-    container.style.pointerEvents = "all";
-    container.style.userSelect = "text";
-    container.style.overflowY = "auto";
+    container.addClass("my-todo-root-container");
     container.style.setProperty("--todo-tc", tc);
     container.style.setProperty("--todo-tc-light", tcLight);
     container.style.setProperty("--todo-tc-mid", tcMid);
@@ -526,21 +626,21 @@ ${taskList}
     this.renderWeekly(root);
     this.renderCategories(root);
     this.renderHeatmap(root);
-    const backToTop = container.createEl("button", { cls: "todo-back-to-top", text: "\u25B2" });
+    const backToTop = container.createEl("button", { cls: `todo-back-to-top ${scrollTop > 150 ? "is-visible" : "is-hidden"}`, text: "\u25B2" });
     backToTop.title = "Back to top";
-    backToTop.style.display = scrollTop > 150 ? "flex" : "none";
     backToTop.onclick = () => {
       container.scrollTo({ top: 0, behavior: "smooth" });
     };
     container.scrollTop = scrollTop;
   }
   renderHeader(root) {
+    var _a, _b, _c;
     const { rolloverHour, rolloverMinute } = this.plugin.settings;
     const today = getLogicalDay(rolloverHour, rolloverMinute);
     const s = this.data.scores.find((x) => x.date === today);
-    const planned = s?.plannedHours ?? 0;
-    const completed = s?.completedHours ?? 0;
-    const score = s?.score ?? 0;
+    const planned = (_a = s == null ? void 0 : s.plannedHours) != null ? _a : 0;
+    const completed = (_b = s == null ? void 0 : s.completedHours) != null ? _b : 0;
+    const score = (_c = s == null ? void 0 : s.score) != null ? _c : 0;
     const header = root.createDiv("todo-header");
     header.createEl("h1", { text: "My Todo" });
     header.createEl("span", { cls: "todo-score-badge", text: planned === 0 ? "No tasks today" : `${completed}h / ${planned}h \xB7 ${score}%` });
@@ -550,25 +650,33 @@ ${taskList}
     const card = root.createDiv("kanban-card");
     card.createEl("h1", { cls: "kanban-card-title", text: "Daily Todo" });
     const tasks = this.getDailyTasks();
-    if (tasks.length === 0) card.createEl("p", { cls: "mytodo-empty", text: "No tasks for today. Add from Weekly." });
-    else tasks.forEach((t) => this.renderTaskRow(card, t, "daily"));
+    if (tasks.length === 0)
+      card.createEl("p", { cls: "mytodo-empty", text: "No tasks for today. Add from Weekly." });
+    else
+      tasks.forEach((t) => this.renderTaskRow(card, t, "daily"));
   }
   renderWeekly(root) {
     const card = root.createDiv("kanban-card");
     card.createEl("h1", { cls: "kanban-card-title", text: "Weekly Todo" });
     const tasks = this.getWeeklyTasks();
-    if (tasks.length === 0) card.createEl("p", { cls: "mytodo-empty", text: "No tasks this week. Add from Categories below." });
-    else tasks.forEach((t) => this.renderTaskRow(card, t, "weekly"));
+    if (tasks.length === 0)
+      card.createEl("p", { cls: "mytodo-empty", text: "No tasks this week. Add from Categories below." });
+    else
+      tasks.forEach((t) => this.renderTaskRow(card, t, "weekly"));
   }
   renderCategories(root) {
     const section = root.createDiv("todo-section");
     section.createEl("h1", { cls: "todo-section-title", text: "Categories" });
     const grid = section.createDiv("categories-kanban");
     let catsToRender = [...this.data.categories];
-    if (this.plugin.settings.sortOrder === "alpha-asc") catsToRender.sort((a, b) => a.name.localeCompare(b.name));
-    else if (this.plugin.settings.sortOrder === "alpha-desc") catsToRender.sort((a, b) => b.name.localeCompare(a.name));
-    else if (this.plugin.settings.sortOrder === "date-asc") catsToRender.sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
-    else if (this.plugin.settings.sortOrder === "date-desc") catsToRender.sort((a, b) => (b.createdDate || "").localeCompare(a.createdDate || ""));
+    if (this.plugin.settings.sortOrder === "alpha-asc")
+      catsToRender.sort((a, b) => a.name.localeCompare(b.name));
+    else if (this.plugin.settings.sortOrder === "alpha-desc")
+      catsToRender.sort((a, b) => b.name.localeCompare(a.name));
+    else if (this.plugin.settings.sortOrder === "date-asc")
+      catsToRender.sort((a, b) => (a.createdDate || "").localeCompare(b.createdDate || ""));
+    else if (this.plugin.settings.sortOrder === "date-desc")
+      catsToRender.sort((a, b) => (b.createdDate || "").localeCompare(a.createdDate || ""));
     catsToRender.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
     catsToRender.forEach((cat) => this.renderCategoryBlock(grid, cat));
     const addArea = section.createDiv("add-category-area");
@@ -576,13 +684,13 @@ ${taskList}
     const inputWrap = addRow.createDiv("add-category-input-wrap");
     const nameInput = inputWrap.createEl("input", { type: "text", placeholder: "New category name or pick a note..." });
     const addBtn = addRow.createEl("button", { text: "+ Category", cls: "add-task-btn" });
-    const dropdown = inputWrap.createDiv("notes-dropdown");
-    dropdown.style.display = "none";
+    const dropdown = inputWrap.createDiv("notes-dropdown is-hidden");
     const showDropdown = (filter) => {
       const notes = this.getAllVaultNotes().filter((n) => n.toLowerCase().includes(filter.toLowerCase()));
       dropdown.empty();
       if (notes.length === 0) {
-        dropdown.style.display = "none";
+        dropdown.addClass("is-hidden");
+        dropdown.removeClass("is-visible");
         return;
       }
       notes.slice(0, 20).forEach((note) => {
@@ -590,38 +698,53 @@ ${taskList}
         item.setText(note);
         item.onclick = () => {
           nameInput.value = note;
-          dropdown.style.display = "none";
+          dropdown.addClass("is-hidden");
+          dropdown.removeClass("is-visible");
         };
       });
-      dropdown.style.display = "block";
+      dropdown.addClass("is-visible");
+      dropdown.removeClass("is-hidden");
     };
     nameInput.addEventListener("input", () => {
-      if (nameInput.value.length > 0) showDropdown(nameInput.value);
-      else dropdown.style.display = "none";
+      if (nameInput.value.length > 0)
+        showDropdown(nameInput.value);
+      else {
+        dropdown.addClass("is-hidden");
+        dropdown.removeClass("is-visible");
+      }
     });
-    nameInput.addEventListener("blur", () => setTimeout(() => {
-      dropdown.style.display = "none";
+    nameInput.addEventListener("blur", () => window.setTimeout(() => {
+      dropdown.addClass("is-hidden");
+      dropdown.removeClass("is-visible");
     }, 150));
     nameInput.addEventListener("focus", () => {
-      if (nameInput.value.length > 0) showDropdown(nameInput.value);
+      if (nameInput.value.length > 0)
+        showDropdown(nameInput.value);
     });
     addBtn.onclick = () => {
       const n = nameInput.value.trim();
-      if (!n) return;
+      if (!n)
+        return;
       this.addCategory(n);
       nameInput.value = "";
-      dropdown.style.display = "none";
+      dropdown.addClass("is-hidden");
+      dropdown.removeClass("is-visible");
     };
     nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") addBtn.click();
-      if (e.key === "Escape") dropdown.style.display = "none";
+      if (e.key === "Enter")
+        addBtn.click();
+      if (e.key === "Escape") {
+        dropdown.addClass("is-hidden");
+        dropdown.removeClass("is-visible");
+      }
     });
   }
   renderCategoryBlock(container, cat) {
     const block = container.createDiv("category-block");
     block.setAttribute("data-category-id", cat.id);
     const catHdr = block.createDiv("category-header");
-    if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || "#8a5cf5")) + "60";
+    if (cat.color)
+      catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || "#8a5cf5")) + "60";
     catHdr.oncontextmenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -629,7 +752,8 @@ ${taskList}
       this.showCategoryMenu(block, cat, e);
     };
     const nameEl = catHdr.createEl("span", { cls: "category-name", text: (cat.pinned ? "\u2B50 " : "") + cat.name });
-    if (cat.color) nameEl.style.color = cat.color;
+    if (cat.color)
+      nameEl.style.color = cat.color;
     const tagEl = catHdr.createEl("span", { cls: "category-tag", text: catTag(cat.name, cat.customTag) });
     if (cat.color) {
       tagEl.style.color = cat.color;
@@ -643,7 +767,8 @@ ${taskList}
     };
     const active = cat.tasks.filter((t) => !t.completed);
     const done = cat.tasks.filter((t) => t.completed);
-    if (active.length === 0 && done.length === 0) block.createEl("p", { cls: "mytodo-empty", text: "No tasks yet." });
+    if (active.length === 0 && done.length === 0)
+      block.createEl("p", { cls: "mytodo-empty", text: "No tasks yet." });
     active.forEach((t) => this.renderTaskRow(block, t, "category"));
     done.forEach((t) => this.renderTaskRow(block, t, "category"));
     const trigger = block.createDiv("add-task-trigger");
@@ -674,25 +799,27 @@ ${taskList}
     const cancelBtn = actions.createEl("button", { text: "Cancel", cls: "cancel-task-btn" });
     const addBtn = actions.createEl("button", { text: "Add", cls: "add-task-btn" });
     trigger.onclick = () => {
-      trigger.style.display = "none";
+      trigger.addClass("is-hidden");
       form.addClass("visible");
       textInput.focus();
     };
     cancelBtn.onclick = () => {
       form.removeClass("visible");
-      trigger.style.display = "";
+      trigger.removeClass("is-hidden");
       textInput.value = "";
       hoursInput.value = "";
       dateInput.value = "";
     };
     const submit = () => {
       const text = textInput.value.trim();
-      if (!text) return;
+      if (!text)
+        return;
       this.addTask(cat.id, text, parseFloat(hoursInput.value) || 0.5, dateInput.value || void 0);
     };
     addBtn.onclick = submit;
     textInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") submit();
+      if (e.key === "Enter")
+        submit();
     });
   }
   showCategoryMenu(block, cat, e) {
@@ -737,22 +864,25 @@ ${taskList}
     rename.onclick = () => {
       this.closeActiveMenu();
       const nameEl = block.querySelector(".category-name");
-      if (!nameEl) return;
-      const input = document.createElement("input");
-      input.className = "cat-rename-input";
-      input.value = cat.name;
+      if (!nameEl)
+        return;
+      const input = createEl("input", { cls: "cat-rename-input", value: cat.name });
       nameEl.replaceWith(input);
       input.focus();
       input.select();
-      const confirm2 = () => {
+      const saveRename = () => {
         const n = input.value.trim();
-        if (n && n !== cat.name) this.renameCategory(cat.id, n);
-        else this.render();
+        if (n && n !== cat.name)
+          this.renameCategory(cat.id, n);
+        else
+          this.render();
       };
-      input.addEventListener("blur", confirm2);
+      input.addEventListener("blur", saveRename);
       input.addEventListener("keydown", (e2) => {
-        if (e2.key === "Enter") confirm2();
-        if (e2.key === "Escape") this.render();
+        if (e2.key === "Enter")
+          saveRename();
+        if (e2.key === "Escape")
+          this.render();
       });
     };
     const createNote = menu.createDiv("cat-dropdown-item");
@@ -766,23 +896,25 @@ ${taskList}
     renameTag.onclick = () => {
       this.closeActiveMenu();
       const tagEl = block.querySelector(".category-tag");
-      if (!tagEl) return;
-      const input = document.createElement("input");
-      input.className = "cat-rename-input";
-      input.style.cssText = "font-size:11px;width:100%;";
-      input.value = catTag(cat.name, cat.customTag);
+      if (!tagEl)
+        return;
+      const input = createEl("input", { cls: "cat-rename-input cat-tag-rename-input", value: catTag(cat.name, cat.customTag) });
       tagEl.replaceWith(input);
       input.focus();
       input.select();
       const confirmTag = () => {
         const n = input.value.trim();
-        if (n) this.renameTag(cat.id, n);
-        else this.render();
+        if (n)
+          this.renameTag(cat.id, n);
+        else
+          this.render();
       };
       input.addEventListener("blur", confirmTag);
       input.addEventListener("keydown", (e2) => {
-        if (e2.key === "Enter") confirmTag();
-        if (e2.key === "Escape") this.render();
+        if (e2.key === "Enter")
+          confirmTag();
+        if (e2.key === "Escape")
+          this.render();
       });
     };
     menu.createDiv("cat-dropdown-divider");
@@ -792,7 +924,8 @@ ${taskList}
     CATEGORY_COLORS.forEach((c) => {
       const sw = swatches.createDiv("color-swatch");
       sw.style.background = c.value || "#555555";
-      if (cat.color === c.value) sw.addClass("active");
+      if (cat.color === c.value)
+        sw.addClass("active");
       sw.title = c.label;
       sw.onclick = () => {
         this.closeActiveMenu();
@@ -804,13 +937,12 @@ ${taskList}
     del.setText("\u2715 Delete");
     del.onclick = () => {
       this.closeActiveMenu();
-      if (confirm(`Delete "${cat.name}" and all its tasks?`)) this.deleteCategory(cat.id);
+      new ConfirmModal(this.plugin.app, `Delete "${cat.name}" and all its tasks?`, () => this.deleteCategory(cat.id)).open();
     };
   }
   renderTaskRow(container, task, context) {
     const overdue = this.getOverdueStatus(task);
     const row = container.createDiv(`todo-task${task.completed ? " completed" : ""}`);
-    row.style.position = "relative";
     row.oncontextmenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -820,12 +952,13 @@ ${taskList}
     if (context === "weekly" || context === "daily") {
       row.ondblclick = () => {
         const catObj = this.data.categories.find((c) => c.id === task.categoryId);
-        if (!catObj) return;
+        if (!catObj)
+          return;
         const block = document.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
         if (block) {
           block.scrollIntoView({ behavior: "smooth", block: "center" });
           block.classList.add("highlight-flash");
-          setTimeout(() => block.classList.remove("highlight-flash"), 1200);
+          window.setTimeout(() => block.classList.remove("highlight-flash"), 1200);
         }
       };
     }
@@ -835,30 +968,33 @@ ${taskList}
     const body = left.createDiv("task-body");
     const textEl = body.createEl("span", { cls: "task-text", text: task.text });
     if (!task.completed) {
-      if (overdue === "orange") textEl.addClass("overdue-orange");
-      if (overdue === "red") textEl.addClass("overdue-red");
+      if (overdue === "orange")
+        textEl.addClass("overdue-orange");
+      if (overdue === "red")
+        textEl.addClass("overdue-red");
     }
     const badges = body.createDiv("task-badges");
     badges.createEl("span", { cls: "task-hours", text: `${task.estimatedHours}h` });
     if (task.dueDate) {
       const dueEl = badges.createEl("span", { cls: "task-due", text: toDisplayDate(task.dueDate) });
       if (!task.completed) {
-        if (overdue === "orange") dueEl.addClass("overdue-orange");
-        if (overdue === "red") dueEl.addClass("overdue-red");
+        if (overdue === "orange")
+          dueEl.addClass("overdue-orange");
+        if (overdue === "red")
+          dueEl.addClass("overdue-red");
       }
     }
     if (context === "weekly" || context === "daily") {
       const taskCat = this.data.categories.find((c) => c.id === task.categoryId);
       const displayName = taskCat ? taskCat.name : task.category;
-      const tagEl = badges.createEl("span", { cls: "task-cat-tag", text: catTag(displayName, taskCat?.customTag) });
-      tagEl.style.cursor = "pointer";
+      const tagEl = badges.createEl("span", { cls: "task-cat-tag", text: catTag(displayName, taskCat == null ? void 0 : taskCat.customTag) });
       tagEl.onclick = (e) => {
         e.stopPropagation();
-        const block = document.querySelector(`.category-block[data-category-id="${taskCat?.id}"]`);
+        const block = document.querySelector(`.category-block[data-category-id="${taskCat == null ? void 0 : taskCat.id}"]`);
         if (block) {
           block.scrollIntoView({ behavior: "smooth", block: "center" });
           block.classList.add("highlight-flash");
-          setTimeout(() => block.classList.remove("highlight-flash"), 1200);
+          window.setTimeout(() => block.classList.remove("highlight-flash"), 1200);
         }
       };
     }
@@ -886,8 +1022,7 @@ ${taskList}
     };
   }
   showTaskMenu(row, task, context, e) {
-    const menu = document.createElement("div");
-    menu.className = "task-dropdown";
+    const menu = createEl("div", { cls: "task-dropdown" });
     menu.style.position = "fixed";
     menu.style.zIndex = "99999";
     if (e) {
@@ -921,9 +1056,10 @@ ${taskList}
     };
   }
   showTaskEditForm(row, task) {
-    if (row.nextElementSibling?.classList.contains("task-edit-form")) return;
-    const form = document.createElement("div");
-    form.className = "task-edit-form";
+    var _a;
+    if ((_a = row.nextElementSibling) == null ? void 0 : _a.classList.contains("task-edit-form"))
+      return;
+    const form = createEl("div", { cls: "task-edit-form" });
     const r1 = form.createDiv("task-edit-row");
     const textInput = r1.createEl("input", { type: "text", cls: "edit-text" });
     textInput.value = task.text;
@@ -934,7 +1070,8 @@ ${taskList}
     hoursInput.step = "0.25";
     hoursInput.placeholder = "Hours";
     const dateInput = r2.createEl("input", { type: "date", cls: "edit-date" });
-    if (task.dueDate) dateInput.value = task.dueDate;
+    if (task.dueDate)
+      dateInput.value = task.dueDate;
     const actionsDiv = form.createDiv("task-edit-actions");
     const cancelBtn = actionsDiv.createEl("button", { text: "Cancel", cls: "cancel-task-btn" });
     const saveBtn = actionsDiv.createEl("button", { text: "Save", cls: "add-task-btn" });
@@ -943,19 +1080,23 @@ ${taskList}
     };
     saveBtn.onclick = () => {
       const newText = textInput.value.trim();
-      if (!newText) return;
+      if (!newText)
+        return;
       this.editTask(task.id, newText, parseFloat(hoursInput.value) || task.estimatedHours, dateInput.value || void 0);
       form.remove();
     };
     textInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") saveBtn.click();
-      if (e.key === "Escape") cancelBtn.click();
+      if (e.key === "Enter")
+        saveBtn.click();
+      if (e.key === "Escape")
+        cancelBtn.click();
     });
     row.insertAdjacentElement("afterend", form);
     textInput.focus();
     textInput.select();
   }
   renderHeatmap(root) {
+    var _a;
     const section = root.createDiv("heatmap-section");
     section.createEl("h1", { cls: "heatmap-section-title", text: "Productivity Heatmap" });
     const logicalDayStr = getLogicalDay(this.plugin.settings.rolloverHour, this.plugin.settings.rolloverMinute);
@@ -966,20 +1107,16 @@ ${taskList}
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const monthName = today.toLocaleString("default", { month: "long" });
     const todayDay = today.getDate();
-    const monthLabel = section.createEl("p");
-    monthLabel.setText(`${monthName} ${year}`);
-    monthLabel.style.cssText = "font-size:11px;color:var(--text-muted);margin:0 0 4px 0;";
+    const monthLabel = section.createEl("p", { cls: "heatmap-month-label", text: `${monthName} ${year}` });
     const grid = section.createDiv("heatmap-grid");
     for (let day = 1; day <= daysInMonth; day++) {
       const d2 = new Date(year, month, day);
       const dateStr = localIso(d2);
       const scoreEntry = this.data.scores.find((s) => s.date === dateStr);
-      const score = scoreEntry?.score ?? 0;
+      const score = (_a = scoreEntry == null ? void 0 : scoreEntry.score) != null ? _a : 0;
       const isFuture = day > todayDay;
-      const cell = grid.createDiv("heatmap-cell");
-      cell.style.background = isFuture ? "var(--background-modifier-border)" : this.scoreToColor(score);
-      if (isFuture) cell.style.opacity = "0.3";
-      if (day === todayDay) cell.style.outline = `2px solid ${this.plugin.settings.themeColor || "#8a5cf5"}`;
+      const cell = grid.createDiv(`heatmap-cell${isFuture ? " is-future" : ""}${day === todayDay ? " is-today" : ""}`);
+      cell.style.backgroundColor = isFuture ? "var(--background-modifier-border)" : this.scoreToColor(score);
       cell.createDiv("heatmap-tooltip").setText(scoreEntry ? `${toDisplayDate(dateStr)}: ${score}%` : `${toDisplayDate(dateStr)}: no tasks`);
     }
     const legend = section.createDiv("heatmap-legend");
@@ -991,7 +1128,8 @@ ${taskList}
     legend.createEl("span", { text: "More" });
   }
   scoreToColor(score) {
-    if (score === 0) return "var(--background-secondary)";
+    if (score === 0)
+      return "var(--background-secondary)";
     const hex = this.plugin.settings.themeColor || "#8a5cf5";
     const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r},${g},${b},${(0.15 + score / 100 * 0.85).toFixed(2)})`;
@@ -1007,39 +1145,44 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
     this._pendingSaveData = null;
     this._pendingSaveResolvers = [];
   }
-  async onload() {
-    const saved = await this.loadData();
-    this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? "" };
-    for (const cat of this.data.categories) {
-      for (const task of cat.tasks) {
-        if (!task.categoryId) {
-          task.categoryId = cat.id;
+  onload() {
+    return __async(this, null, function* () {
+      var _a, _b, _c, _d;
+      const saved = yield this.loadData();
+      this.data = __spreadProps(__spreadValues(__spreadValues({}, DEFAULT_DATA), saved), { categories: (_a = saved == null ? void 0 : saved.categories) != null ? _a : DEFAULT_DATA.categories, scores: (_b = saved == null ? void 0 : saved.scores) != null ? _b : [], lastRolloverDate: (_c = saved == null ? void 0 : saved.lastRolloverDate) != null ? _c : "" });
+      for (const cat of this.data.categories) {
+        for (const task of cat.tasks) {
+          if (!task.categoryId) {
+            task.categoryId = cat.id;
+          }
         }
       }
-    }
-    this.settings = { ...DEFAULT_SETTINGS, ...saved?.settings ?? {} };
-    if (!this.settings.themeColor) this.settings.themeColor = "#8a5cf5";
-    this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
-    this.addRibbonIcon("check-square", "My Todo", () => this.activateView());
-    this.addCommand({ id: "open-my-todo", name: "Open My Todo", callback: () => this.activateView() });
-    this.addSettingTab(new TodoSettingTab(this.app, this));
-    this.registerEvent(
-      this.app.workspace.on("active-leaf-change", () => {
+      this.settings = __spreadValues(__spreadValues({}, DEFAULT_SETTINGS), (_d = saved == null ? void 0 : saved.settings) != null ? _d : {});
+      if (!this.settings.themeColor)
+        this.settings.themeColor = "#8a5cf5";
+      this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
+      this.addRibbonIcon("check-square", "My Todo", () => this.activateView());
+      this.addCommand({ id: "open", name: "Open", callback: () => this.activateView() });
+      this.addSettingTab(new TodoSettingTab(this.app, this));
+      this.registerEvent(
+        this.app.workspace.on("active-leaf-change", () => {
+          this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
+            const view = v.view;
+            if (view == null ? void 0 : view.render) {
+              view.data = this.data;
+              view.render();
+            }
+          });
+        })
+      );
+      this.registerInterval(window.setInterval(() => {
         this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
           const view = v.view;
-          if (view?.render) {
-            view.data = this.data;
-            view.render();
-          }
+          if (view == null ? void 0 : view.runDayRollover)
+            view.runDayRollover();
         });
-      })
-    );
-    this.registerInterval(window.setInterval(() => {
-      this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
-        const view = v.view;
-        if (view?.runDayRollover) view.runDayRollover();
-      });
-    }, 6e4));
+      }, 6e4));
+    });
   }
   saveDataQueued(data) {
     return new Promise((resolve) => {
@@ -1053,10 +1196,10 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
         const dataToSave = this._pendingSaveData;
         const resolvers = this._pendingSaveResolvers;
         this._pendingSaveResolvers = [];
-        const saveCall = async () => {
-          await this.saveData(dataToSave);
+        const saveCall = () => __async(this, null, function* () {
+          yield this.saveData(dataToSave);
           resolvers.forEach((r) => r());
-        };
+        });
         if (!this._savePromise) {
           this._savePromise = saveCall();
         } else {
@@ -1065,29 +1208,35 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
       }, 1e3);
     });
   }
-  async saveSettings() {
-    await this.saveDataQueued({ ...this.data, settings: this.settings });
+  saveSettings() {
+    return __async(this, null, function* () {
+      yield this.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.settings }));
+    });
   }
-  async onunload() {
-    if (this._saveTimeout) {
-      window.clearTimeout(this._saveTimeout);
-      this._saveTimeout = null;
-    }
-    if (this._pendingSaveData) {
-      await this.saveData(this._pendingSaveData);
-      this._pendingSaveResolvers.forEach((r) => r());
-      this._pendingSaveResolvers = [];
-      this._pendingSaveData = null;
-    }
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE);
+  onunload() {
+    return __async(this, null, function* () {
+      if (this._saveTimeout) {
+        window.clearTimeout(this._saveTimeout);
+        this._saveTimeout = null;
+      }
+      if (this._pendingSaveData) {
+        yield this.saveData(this._pendingSaveData);
+        this._pendingSaveResolvers.forEach((r) => r());
+        this._pendingSaveResolvers = [];
+        this._pendingSaveData = null;
+      }
+    });
   }
-  async activateView() {
-    const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
-    if (!leaf) {
-      leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf(true);
-      await leaf.setViewState({ type: VIEW_TYPE, active: true });
-    }
-    workspace.revealLeaf(leaf);
+  activateView() {
+    return __async(this, null, function* () {
+      var _a;
+      const { workspace } = this.app;
+      let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
+      if (!leaf) {
+        leaf = (_a = workspace.getRightLeaf(false)) != null ? _a : workspace.getLeaf(true);
+        yield leaf.setViewState({ type: VIEW_TYPE, active: true });
+      }
+      workspace.revealLeaf(leaf);
+    });
   }
 };

@@ -341,6 +341,7 @@
     padding: 1px 6px;
     border-radius: 8px;
     font-weight: 600;
+    cursor: pointer;
 }
 
 .task-actions {
@@ -827,4 +828,78 @@
 .todo-back-to-top:hover {
     transform: scale(1.1);
     filter: brightness(1.2);
+}
+
+/* Setting Tab & Swatch Component Classes */
+.todo-time-input {
+    width: 60px !important;
+    margin-right: 8px !important;
+}
+
+.todo-swatch-wrap {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.todo-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--swatch-color);
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: border-color 0.15s, transform 0.15s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.todo-swatch.is-active {
+    border-color: var(--text-on-accent);
+}
+
+.rollover-preview {
+    color: var(--todo-tc);
+    font-size: 13px;
+    margin-top: 8px;
+    margin-bottom: 16px;
+}
+
+.cat-tag-rename-input {
+    font-size: 11px;
+    width: 100%;
+}
+
+.heatmap-month-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 0 0 4px 0;
+}
+
+.heatmap-cell.is-future {
+    opacity: 0.3;
+}
+
+.heatmap-cell.is-today {
+    outline: 2px solid var(--todo-tc);
+}
+
+.notes-dropdown.is-hidden,
+.add-task-trigger.is-hidden,
+.todo-back-to-top.is-hidden {
+    display: none;
+}
+
+.notes-dropdown.is-visible {
+    display: block;
+}
+
+.todo-back-to-top.is-visible {
+    display: flex;
+}
+
+.my-todo-root-container {
+    pointer-events: all;
+    user-select: text;
+    overflow-y: auto;
 }

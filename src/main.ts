@@ -1,4 +1,4 @@
-import { Notice, Plugin, WorkspaceLeaf, ItemView, PluginSettingTab, App, Setting, TFile } from 'obsidian';
+import { Notice, Plugin, WorkspaceLeaf, ItemView, PluginSettingTab, App, Setting, TFile, Modal } from 'obsidian';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +119,38 @@ function getLogicalDay(rolloverHour: number, rolloverMinute: number): string {
 	return todayIso();
 }
 
+// ─── Confirm Modal ────────────────────────────────────────────────────────────
+
+class ConfirmModal extends Modal {
+	message: string;
+	onConfirm: () => void;
+
+	constructor(app: App, message: string, onConfirm: () => void) {
+		super(app);
+		this.message = message;
+		this.onConfirm = onConfirm;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('p', { text: this.message });
+		const actions = contentEl.createDiv('modal-button-container');
+		const cancelBtn = actions.createEl('button', { text: 'Cancel' });
+		cancelBtn.onclick = () => this.close();
+		const confirmBtn = actions.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+		confirmBtn.onclick = () => {
+			this.close();
+			this.onConfirm();
+		};
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+}
+
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
 
 class TodoSettingTab extends PluginSettingTab {
@@ -132,7 +164,7 @@ class TodoSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'My Todo Settings' });
+		new Setting(containerEl).setName('My Todo Settings').setHeading();
 
 		// End of day time
 		containerEl.createEl('p', { text: 'Set the time when your day resets. Values are auto-clamped to valid range.', attr: { style: 'color:var(--text-muted);font-size:13px;margin-bottom:16px;' } });
@@ -159,7 +191,7 @@ class TodoSettingTab extends PluginSettingTab {
 			.addText(text => {
 				hourInput = text.inputEl;
 				text.inputEl.type = 'number'; text.inputEl.min = '0'; text.inputEl.max = '23';
-				text.inputEl.style.width = '60px'; text.inputEl.style.marginRight = '8px';
+				text.inputEl.addClass('todo-time-input');
 				text.inputEl.placeholder = 'hr';
 				text.setValue(String(this.plugin.settings.rolloverHour));
 				text.onChange(() => saveTimeSettings());
@@ -168,7 +200,7 @@ class TodoSettingTab extends PluginSettingTab {
 			.addText(text => {
 				minuteInput = text.inputEl;
 				text.inputEl.type = 'number'; text.inputEl.min = '0'; text.inputEl.max = '59';
-				text.inputEl.style.width = '60px'; text.inputEl.style.marginRight = '8px';
+				text.inputEl.addClass('todo-time-input');
 				text.inputEl.placeholder = 'min';
 				text.setValue(String(this.plugin.settings.rolloverMinute));
 				text.onChange(() => saveTimeSettings());
@@ -211,8 +243,10 @@ class TodoSettingTab extends PluginSettingTab {
 			);
 
 		// Theme color
-		containerEl.createEl('h3', { text: 'Theme Color', attr: { style: 'margin-top:24px;margin-bottom:8px;font-family:"Century Gothic","AppleGothic","Trebuchet MS",sans-serif;' } });
-		containerEl.createEl('p', { text: 'Choose the accent color used throughout the plugin.', attr: { style: 'color:var(--text-muted);font-size:13px;margin-bottom:12px;' } });
+		new Setting(containerEl)
+			.setName('Theme Color')
+			.setDesc('Choose the accent color used throughout the plugin.')
+			.setHeading();
 
 		const THEME_COLORS = [
 			{ label: 'Purple', value: '#8a5cf5' },
@@ -224,21 +258,18 @@ class TodoSettingTab extends PluginSettingTab {
 			{ label: 'Orange', value: '#f97316' },
 		];
 
-		const swatchWrap = containerEl.createDiv();
-		swatchWrap.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;align-items:center;';
+		const swatchWrap = containerEl.createDiv('todo-swatch-wrap');
 
 		THEME_COLORS.forEach(tc => {
-			const swatch = swatchWrap.createDiv();
-			swatch.style.cssText = `width:28px;height:28px;border-radius:50%;background:${tc.value};cursor:pointer;border:3px solid ${this.plugin.settings.themeColor === tc.value ? 'white' : 'transparent'};transition:border-color 0.15s,transform 0.15s;box-shadow:0 2px 8px rgba(0,0,0,0.3);`;
+			const swatch = swatchWrap.createDiv(`todo-swatch${this.plugin.settings.themeColor === tc.value ? ' is-active' : ''}`);
+			swatch.style.setProperty('--swatch-color', tc.value);
 			swatch.title = tc.label;
 			swatch.onclick = async () => {
 				this.plugin.settings.themeColor = tc.value;
 				await this.plugin.saveSettings();
-				// Re-render all swatches
-				swatchWrap.querySelectorAll('div').forEach((s: HTMLElement, i: number) => {
-					s.style.borderColor = THEME_COLORS[i].value === tc.value ? 'white' : 'transparent';
+				swatchWrap.querySelectorAll('.todo-swatch').forEach((s: HTMLElement, i: number) => {
+					s.classList.toggle('is-active', THEME_COLORS[i].value === tc.value);
 				});
-				// Re-render plugin view if open
 				this.plugin.app.workspace.getLeavesOfType('my-todo-view').forEach(v => {
 					const view = v.view as any;
 					if (view?.render) { view.data = this.plugin.data; view.render(); }
@@ -254,7 +285,7 @@ class TodoSettingTab extends PluginSettingTab {
 		if (existing) existing.remove();
 		const h = String(this.plugin.settings.rolloverHour).padStart(2, '0');
 		const m = String(this.plugin.settings.rolloverMinute).padStart(2, '0');
-		containerEl.createEl('p', { text: `✓ Day resets at ${h}:${m}`, attr: { class: 'rollover-preview', style: 'color:#8a5cf5;font-size:13px;margin-top:8px;margin-bottom:16px;' } });
+		containerEl.createEl('p', { text: `✓ Day resets at ${h}:${m}`, cls: 'rollover-preview' });
 	}
 }
 
@@ -289,7 +320,8 @@ class TodoView extends ItemView {
 		this.registerDomEvent(container, 'scroll', () => {
 			const btn = container.querySelector('.todo-back-to-top') as HTMLElement;
 			if (btn) {
-				btn.style.display = container.scrollTop > 150 ? 'flex' : 'none';
+				btn.classList.toggle('is-visible', container.scrollTop > 150);
+				btn.classList.toggle('is-hidden', container.scrollTop <= 150);
 			}
 		});
 	}
@@ -551,9 +583,7 @@ class TodoView extends ItemView {
 		const tcMid = tc + '40';
 		const tcFaint = tc + '18';
 		const tcFaint15 = tc + '15';
-		container.style.pointerEvents = 'all';
-		container.style.userSelect = 'text';
-		container.style.overflowY = 'auto';
+		container.addClass('my-todo-root-container');
 		container.style.setProperty('--todo-tc', tc);
 		container.style.setProperty('--todo-tc-light', tcLight);
 		container.style.setProperty('--todo-tc-mid', tcMid);
@@ -567,9 +597,8 @@ class TodoView extends ItemView {
 		this.renderHeatmap(root);
 
 		// Add floating Back to Top button
-		const backToTop = container.createEl('button', { cls: 'todo-back-to-top', text: '▲' });
+		const backToTop = container.createEl('button', { cls: `todo-back-to-top ${scrollTop > 150 ? 'is-visible' : 'is-hidden'}`, text: '▲' });
 		backToTop.title = 'Back to top';
-		backToTop.style.display = scrollTop > 150 ? 'flex' : 'none';
 		backToTop.onclick = () => {
 			container.scrollTo({ top: 0, behavior: 'smooth' });
 		};
@@ -626,23 +655,23 @@ class TodoView extends ItemView {
 		const addBtn = addRow.createEl('button', { text: '+ Category', cls: 'add-task-btn' });
 
 		// Notes dropdown
-		const dropdown = inputWrap.createDiv('notes-dropdown');
-		dropdown.style.display = 'none';
+		const dropdown = inputWrap.createDiv('notes-dropdown is-hidden');
 
 		const showDropdown = (filter: string) => {
 			const notes = this.getAllVaultNotes().filter(n => n.toLowerCase().includes(filter.toLowerCase()));
 			dropdown.empty();
-			if (notes.length === 0) { dropdown.style.display = 'none'; return; }
+			if (notes.length === 0) { dropdown.addClass('is-hidden'); dropdown.removeClass('is-visible'); return; }
 			notes.slice(0, 20).forEach(note => {
 				const item = dropdown.createDiv('notes-dropdown-item');
 				item.setText(note);
-				item.onclick = () => { nameInput.value = note; dropdown.style.display = 'none'; };
+				item.onclick = () => { nameInput.value = note; dropdown.addClass('is-hidden'); dropdown.removeClass('is-visible'); };
 			});
-			dropdown.style.display = 'block';
+			dropdown.addClass('is-visible');
+			dropdown.removeClass('is-hidden');
 		};
 
-		nameInput.addEventListener('input', () => { if (nameInput.value.length > 0) showDropdown(nameInput.value); else dropdown.style.display = 'none'; });
-		nameInput.addEventListener('blur', () => setTimeout(() => { dropdown.style.display = 'none'; }, 150));
+		nameInput.addEventListener('input', () => { if (nameInput.value.length > 0) showDropdown(nameInput.value); else { dropdown.addClass('is-hidden'); dropdown.removeClass('is-visible'); } });
+		nameInput.addEventListener('blur', () => window.setTimeout(() => { dropdown.addClass('is-hidden'); dropdown.removeClass('is-visible'); }, 150));
 		nameInput.addEventListener('focus', () => { if (nameInput.value.length > 0) showDropdown(nameInput.value); });
 
 		addBtn.onclick = () => {
@@ -650,9 +679,10 @@ class TodoView extends ItemView {
 			if (!n) return;
 			this.addCategory(n);
 			nameInput.value = '';
-			dropdown.style.display = 'none';
+			dropdown.addClass('is-hidden');
+			dropdown.removeClass('is-visible');
 		};
-		nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBtn.click(); if (e.key === 'Escape') dropdown.style.display = 'none'; });
+		nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addBtn.click(); if (e.key === 'Escape') { dropdown.addClass('is-hidden'); dropdown.removeClass('is-visible'); } });
 	}
 
 	renderCategoryBlock(container: HTMLElement, cat: Category) {
@@ -709,8 +739,8 @@ class TodoView extends ItemView {
 		const cancelBtn = actions.createEl('button', { text: 'Cancel', cls: 'cancel-task-btn' });
 		const addBtn = actions.createEl('button', { text: 'Add', cls: 'add-task-btn' });
 
-		trigger.onclick = () => { trigger.style.display = 'none'; form.addClass('visible'); textInput.focus(); };
-		cancelBtn.onclick = () => { form.removeClass('visible'); trigger.style.display = ''; textInput.value = ''; hoursInput.value = ''; dateInput.value = ''; };
+		trigger.onclick = () => { trigger.addClass('is-hidden'); form.addClass('visible'); textInput.focus(); };
+		cancelBtn.onclick = () => { form.removeClass('visible'); trigger.removeClass('is-hidden'); textInput.value = ''; hoursInput.value = ''; dateInput.value = ''; };
 		const submit = () => {
 			const text = textInput.value.trim();
 			if (!text) return;
@@ -757,12 +787,11 @@ class TodoView extends ItemView {
 			this.closeActiveMenu();
 			const nameEl = block.querySelector('.category-name') as HTMLElement;
 			if (!nameEl) return;
-			const input = document.createElement('input');
-			input.className = 'cat-rename-input'; input.value = cat.name;
+			const input = createEl('input', { cls: 'cat-rename-input', value: cat.name });
 			nameEl.replaceWith(input); input.focus(); input.select();
-			const confirm = () => { const n = input.value.trim(); if (n && n !== cat.name) this.renameCategory(cat.id, n); else this.render(); };
-			input.addEventListener('blur', confirm);
-			input.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') this.render(); });
+			const saveRename = () => { const n = input.value.trim(); if (n && n !== cat.name) this.renameCategory(cat.id, n); else this.render(); };
+			input.addEventListener('blur', saveRename);
+			input.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') this.render(); });
 		};
 
 		const createNote = menu.createDiv('cat-dropdown-item'); createNote.setText('📝 Create note');
@@ -773,10 +802,7 @@ class TodoView extends ItemView {
 			this.closeActiveMenu();
 			const tagEl = block.querySelector('.category-tag') as HTMLElement;
 			if (!tagEl) return;
-			const input = document.createElement('input');
-			input.className = 'cat-rename-input';
-			input.style.cssText = 'font-size:11px;width:100%;';
-			input.value = catTag(cat.name, cat.customTag);
+			const input = createEl('input', { cls: 'cat-rename-input cat-tag-rename-input', value: catTag(cat.name, cat.customTag) });
 			tagEl.replaceWith(input);
 			input.focus(); input.select();
 			const confirmTag = () => {
@@ -801,13 +827,15 @@ class TodoView extends ItemView {
 
 		menu.createDiv('cat-dropdown-divider');
 		const del = menu.createDiv('cat-dropdown-item danger'); del.setText('✕ Delete');
-		del.onclick = () => { this.closeActiveMenu(); if (confirm(`Delete "${cat.name}" and all its tasks?`)) this.deleteCategory(cat.id); };
+		del.onclick = () => {
+			this.closeActiveMenu();
+			new ConfirmModal(this.plugin.app, `Delete "${cat.name}" and all its tasks?`, () => this.deleteCategory(cat.id)).open();
+		};
 	}
 
 	renderTaskRow(container: HTMLElement, task: Task, context: 'daily' | 'weekly' | 'category') {
 		const overdue = this.getOverdueStatus(task);
 		const row = container.createDiv(`todo-task${task.completed ? ' completed' : ''}`);
-		row.style.position = 'relative';
 		row.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showTaskMenu(row, task, context, e); };
 		
 		if (context === 'weekly' || context === 'daily') {
@@ -819,7 +847,7 @@ class TodoView extends ItemView {
 				if (block) {
 					block.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					block.classList.add('highlight-flash');
-					setTimeout(() => block.classList.remove('highlight-flash'), 1200);
+					window.setTimeout(() => block.classList.remove('highlight-flash'), 1200);
 				}
 			};
 		}
@@ -852,14 +880,13 @@ class TodoView extends ItemView {
 			const tagEl = badges.createEl('span', { cls: 'task-cat-tag', text: catTag(displayName, taskCat?.customTag) });
 			
 			// Click category tag to scroll to category board
-			tagEl.style.cursor = 'pointer';
 			tagEl.onclick = (e) => {
 				e.stopPropagation();
 				const block = document.querySelector(`.category-block[data-category-id="${taskCat?.id}"]`);
 				if (block) {
 					block.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					block.classList.add('highlight-flash');
-					setTimeout(() => block.classList.remove('highlight-flash'), 1200);
+					window.setTimeout(() => block.classList.remove('highlight-flash'), 1200);
 				}
 			};
 		}
@@ -888,8 +915,7 @@ class TodoView extends ItemView {
 	}
 
 	showTaskMenu(row: HTMLElement, task: Task, context: 'daily' | 'weekly' | 'category', e?: MouseEvent) {
-		const menu = document.createElement('div');
-		menu.className = 'task-dropdown';
+		const menu = createEl('div', { cls: 'task-dropdown' });
 		menu.style.position = 'fixed';
 		menu.style.zIndex = '99999';
 		if (e) {
@@ -925,8 +951,7 @@ class TodoView extends ItemView {
 	showTaskEditForm(row: HTMLElement, task: Task) {
 		if (row.nextElementSibling?.classList.contains('task-edit-form')) return; // Prevent duplication
 		// Insert edit form right below the task row
-		const form = document.createElement('div');
-		form.className = 'task-edit-form';
+		const form = createEl('div', { cls: 'task-edit-form' });
 
 		const r1 = form.createDiv('task-edit-row');
 		const textInput = r1.createEl('input', { type: 'text', cls: 'edit-text' });
@@ -968,9 +993,7 @@ class TodoView extends ItemView {
 		const monthName = today.toLocaleString('default', { month: 'long' });
 		const todayDay = today.getDate();
 
-		const monthLabel = section.createEl('p');
-		monthLabel.setText(`${monthName} ${year}`);
-		monthLabel.style.cssText = 'font-size:11px;color:var(--text-muted);margin:0 0 4px 0;';
+		const monthLabel = section.createEl('p', { cls: 'heatmap-month-label', text: `${monthName} ${year}` });
 
 		const grid = section.createDiv('heatmap-grid');
 		for (let day = 1; day <= daysInMonth; day++) {
@@ -980,10 +1003,8 @@ class TodoView extends ItemView {
 			const score = scoreEntry?.score ?? 0;
 			const isFuture = day > todayDay;
 
-			const cell = grid.createDiv('heatmap-cell');
-			cell.style.background = isFuture ? 'var(--background-modifier-border)' : this.scoreToColor(score);
-			if (isFuture) cell.style.opacity = '0.3';
-			if (day === todayDay) cell.style.outline = `2px solid ${this.plugin.settings.themeColor || '#8a5cf5'}`;
+			const cell = grid.createDiv(`heatmap-cell${isFuture ? ' is-future' : ''}${day === todayDay ? ' is-today' : ''}`);
+			cell.style.backgroundColor = isFuture ? 'var(--background-modifier-border)' : this.scoreToColor(score);
 			cell.createDiv('heatmap-tooltip').setText(scoreEntry ? `${toDisplayDate(dateStr)}: ${score}%` : `${toDisplayDate(dateStr)}: no tasks`);
 		}
 
@@ -1029,7 +1050,7 @@ export default class MyTodoPlugin extends Plugin {
 
 		this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
 		this.addRibbonIcon('check-square', 'My Todo', () => this.activateView());
-		this.addCommand({ id: 'open-my-todo', name: 'Open My Todo', callback: () => this.activateView() });
+		this.addCommand({ id: 'open', name: 'Open', callback: () => this.activateView() });
 		this.addSettingTab(new TodoSettingTab(this.app, this));
 
 		this.registerEvent(
@@ -1091,7 +1112,6 @@ export default class MyTodoPlugin extends Plugin {
 			this._pendingSaveResolvers = [];
 			this._pendingSaveData = null;
 		}
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE);
 	}
 
 	async activateView() {
