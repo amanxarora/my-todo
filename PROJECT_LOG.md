@@ -105,3 +105,15 @@ To appear in the official in-app Obsidian Community Plugins browser:
 
 * Obsidian stores plugin state in `.obsidian/plugins/my-todo/data.json`.
 * When using cloud storage like Google Drive on Android, third-party sync apps (such as DriveSync or FolderSync) must have **"Sync hidden files/folders"** enabled so `.obsidian` is not skipped during synchronization.
+
+---
+
+## 7. Version 1.2.1 Scorecard Risk Fixes
+
+* **Automated Scan Audit:** Resolved all lint risks flagged on `community.obsidian.md/plugins/my-todo#scorecard`.
+* **Static Style Elimination:** Migrated 25+ inline style assignments to CSS classes in `styles.css`.
+* **Workspace Preservation:** Removed `detachLeavesOfType()` from `onunload` to preserve custom sidebar/tab layouts across reloads.
+* **Native Modals:** Replaced browser `confirm()` with Obsidian-native `ConfirmModal`.
+* **Command Palette Cleanliness:** Standardized command to `id: 'open'` and `name: 'Open'`.
+* **Settings Standards:** Added `.setHeading()` to all setting tab section headers.
+
