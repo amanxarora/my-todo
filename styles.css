@@ -131,10 +131,10 @@
     flex-shrink: 0;
 }
 
-.cat-menu-btn {
+button.cat-menu-btn {
     cursor: pointer;
-    border: none !important;
-    background: transparent !important;
+    border: none;
+    background: transparent;
     color: var(--text-faint);
     font-size: 16px;
     padding: 0 2px;
@@ -142,14 +142,14 @@
     border-radius: 4px;
     transition: color 0.15s;
     flex-shrink: 0;
-    outline: none !important;
-    box-shadow: none !important;
+    outline: none;
+    box-shadow: none;
 }
 
-.cat-menu-btn:hover {
+button.cat-menu-btn:hover {
     color: var(--text-normal);
-    background: transparent !important;
-    border: none !important;
+    background: transparent;
+    border: none;
 }
 
 .cat-dropdown {
@@ -375,23 +375,23 @@
     color: var(--todo-tc);
 }
 
-.task-3dot-btn {
+button.task-3dot-btn {
     font-size: 14px;
     cursor: pointer;
     padding: 0 3px;
-    border: none !important;
-    background: transparent !important;
+    border: none;
+    background: transparent;
     color: var(--text-faint);
     transition: color 0.15s;
     line-height: 1;
-    outline: none !important;
-    box-shadow: none !important;
+    outline: none;
+    box-shadow: none;
 }
 
-.task-3dot-btn:hover {
+button.task-3dot-btn:hover {
     color: var(--text-normal);
-    background: transparent !important;
-    border: none !important;
+    background: transparent;
+    border: none;
 }
 
 .task-dropdown {
@@ -831,9 +831,9 @@
 }
 
 /* Setting Tab & Swatch Component Classes */
-.todo-time-input {
-    width: 60px !important;
-    margin-right: 8px !important;
+.setting-item-control input.todo-time-input {
+    width: 60px;
+    margin-right: 8px;
 }
 
 .todo-swatch-wrap {

@@ -86,14 +86,6 @@ function toDisplayDate(isoDate: string): string {
 	return `${d}-${m}-${y}`;
 }
 
-function toIsoDate(input: string): string {
-	if (!input) return '';
-	if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
-	const parts = input.split('-');
-	if (parts.length === 3 && parts[2].length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-	return '';
-}
-
 function localIso(d: Date): string {
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -164,7 +156,7 @@ class TodoSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		new Setting(containerEl).setName('My Todo Settings').setHeading();
+		new Setting(containerEl).setName('General Settings').setHeading();
 
 		// End of day time
 		containerEl.createEl('p', { text: 'Set the time when your day resets. Values are auto-clamped to valid range.', attr: { style: 'color:var(--text-muted);font-size:13px;margin-bottom:16px;' } });
@@ -547,7 +539,7 @@ class TodoView extends ItemView {
 				await vault.modify(existing, content);
 				new Notice(`Updated note: ${cat.name}`);
 			} else {
-				const file = await vault.create(path, content);
+				await vault.create(path, content);
 				new Notice(`Created note: ${cat.name}`);
 			}
 			const leaf = workspace.getLeaf(true);
@@ -993,7 +985,7 @@ class TodoView extends ItemView {
 		const monthName = today.toLocaleString('default', { month: 'long' });
 		const todayDay = today.getDate();
 
-		const monthLabel = section.createEl('p', { cls: 'heatmap-month-label', text: `${monthName} ${year}` });
+		section.createEl('p', { cls: 'heatmap-month-label', text: `${monthName} ${year}` });
 
 		const grid = section.createDiv('heatmap-grid');
 		for (let day = 1; day <= daysInMonth; day++) {

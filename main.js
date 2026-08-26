@@ -149,7 +149,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian.Setting(containerEl).setName("My Todo Settings").setHeading();
+    new import_obsidian.Setting(containerEl).setName("General Settings").setHeading();
     containerEl.createEl("p", { text: "Set the time when your day resets. Values are auto-clamped to valid range.", attr: { style: "color:var(--text-muted);font-size:13px;margin-bottom:16px;" } });
     let hourInput;
     let minuteInput;
@@ -579,7 +579,7 @@ ${taskList}
           yield vault.modify(existing, content);
           new import_obsidian.Notice(`Updated note: ${cat.name}`);
         } else {
-          const file2 = yield vault.create(path, content);
+          yield vault.create(path, content);
           new import_obsidian.Notice(`Created note: ${cat.name}`);
         }
         const leaf = workspace.getLeaf(true);
@@ -1107,7 +1107,7 @@ ${taskList}
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const monthName = today.toLocaleString("default", { month: "long" });
     const todayDay = today.getDate();
-    const monthLabel = section.createEl("p", { cls: "heatmap-month-label", text: `${monthName} ${year}` });
+    section.createEl("p", { cls: "heatmap-month-label", text: `${monthName} ${year}` });
     const grid = section.createDiv("heatmap-grid");
     for (let day = 1; day <= daysInMonth; day++) {
       const d2 = new Date(year, month, day);
