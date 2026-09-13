@@ -117,3 +117,23 @@ To appear in the official in-app Obsidian Community Plugins browser:
 * **Command Palette Cleanliness:** Standardized command to `id: 'open'` and `name: 'Open'`.
 * **Settings Standards:** Added `.setHeading()` to all setting tab section headers.
 
+---
+
+## 8. Version 1.2.2 Quality & Cleanliness Update
+
+* **CSS Specificity Cleanliness:** Removed all `!important` declarations from `styles.css` using higher-specificity element selectors.
+* **Dead Code Cleanup:** Removed unused functions (`toIsoDate`) and unused variable declarations (`monthLabel`, `file`).
+* **Release Asset Normalization:** Standardized GitHub release assets strictly to `main.js`, `manifest.json`, and `styles.css`.
+* **Scan Results:** Issues reduced from 137 to 117.
+
+---
+
+## 9. Version 1.2.3 Scorecard Target Optimization (<100 Issues)
+
+* **Settings Header Compliance:** Removed top-level redundant headings ("General Settings") to conform with Obsidian's UI guidelines.
+* **Folder Creation Safety:** Added `ensureNotesFolder()` helper with existence checks to eliminate empty catch blocks.
+* **API Target Alignment:** Updated `minAppVersion` to `1.4.0` to officially match folder and note manipulation APIs.
+* **Scoped DOM Operations:** Replaced unscoped `document.querySelector` and `document.body` mountings with view-scoped `this.containerEl`.
+* **Async & Type Hardening:** Synchronous `onunload()`, explicit `TodoData` typing across save queues, and `void` handling for event callbacks.
+
+

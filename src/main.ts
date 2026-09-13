@@ -156,7 +156,6 @@ class TodoSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		new Setting(containerEl).setName('General Settings').setHeading();
 
 		// End of day time
 		containerEl.createEl('p', { text: 'Set the time when your day resets. Values are auto-clamped to valid range.', attr: { style: 'color:var(--text-muted);font-size:13px;margin-bottom:16px;' } });
@@ -186,8 +185,8 @@ class TodoSettingTab extends PluginSettingTab {
 				text.inputEl.addClass('todo-time-input');
 				text.inputEl.placeholder = 'hr';
 				text.setValue(String(this.plugin.settings.rolloverHour));
-				text.onChange(() => saveTimeSettings());
-				text.inputEl.addEventListener('blur', () => saveTimeSettings());
+				text.onChange(() => { void saveTimeSettings(); });
+				text.inputEl.addEventListener('blur', () => { void saveTimeSettings(); });
 			})
 			.addText(text => {
 				minuteInput = text.inputEl;
@@ -195,8 +194,8 @@ class TodoSettingTab extends PluginSettingTab {
 				text.inputEl.addClass('todo-time-input');
 				text.inputEl.placeholder = 'min';
 				text.setValue(String(this.plugin.settings.rolloverMinute));
-				text.onChange(() => saveTimeSettings());
-				text.inputEl.addEventListener('blur', () => saveTimeSettings());
+				text.onChange(() => { void saveTimeSettings(); });
+				text.inputEl.addEventListener('blur', () => { void saveTimeSettings(); });
 			});
 
 		this.updatePreview(containerEl);
@@ -207,9 +206,9 @@ class TodoSettingTab extends PluginSettingTab {
 			.setDesc('Display completed task archive inside the plugin. Off by default.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.archiveEnabled)
-				.onChange(async (val) => {
+				.onChange((val) => {
 					this.plugin.settings.archiveEnabled = val;
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				})
 			);
 
@@ -224,13 +223,15 @@ class TodoSettingTab extends PluginSettingTab {
 				.addOption('date-asc', 'Date Created (Oldest First)')
 				.addOption('date-desc', 'Date Created (Newest First)')
 				.setValue(this.plugin.settings.sortOrder)
-				.onChange(async (val: any) => {
-					this.plugin.settings.sortOrder = val;
-					await this.plugin.saveSettings();
-					this.plugin.app.workspace.getLeavesOfType('my-todo-view').forEach(v => {
-						const view = v.view as any;
-						if (view?.render) view.render();
-					});
+				.onChange((val: string) => {
+					if (val === 'manual' || val === 'alpha-asc' || val === 'alpha-desc' || val === 'date-asc' || val === 'date-desc') {
+						this.plugin.settings.sortOrder = val;
+						void this.plugin.saveSettings();
+						this.plugin.app.workspace.getLeavesOfType('my-todo-view').forEach(v => {
+							const view = v.view as TodoView;
+							if (view?.render) view.render();
+						});
+					}
 				})
 			);
 
@@ -256,14 +257,14 @@ class TodoSettingTab extends PluginSettingTab {
 			const swatch = swatchWrap.createDiv(`todo-swatch${this.plugin.settings.themeColor === tc.value ? ' is-active' : ''}`);
 			swatch.style.setProperty('--swatch-color', tc.value);
 			swatch.title = tc.label;
-			swatch.onclick = async () => {
+			swatch.onclick = () => {
 				this.plugin.settings.themeColor = tc.value;
-				await this.plugin.saveSettings();
+				void this.plugin.saveSettings();
 				swatchWrap.querySelectorAll('.todo-swatch').forEach((s: HTMLElement, i: number) => {
 					s.classList.toggle('is-active', THEME_COLORS[i].value === tc.value);
 				});
 				this.plugin.app.workspace.getLeavesOfType('my-todo-view').forEach(v => {
-					const view = v.view as any;
+					const view = v.view as TodoView;
 					if (view?.render) { view.data = this.plugin.data; view.render(); }
 				});
 				new Notice(`Theme color set to ${tc.label}`);
@@ -318,7 +319,18 @@ class TodoView extends ItemView {
 		});
 	}
 
-	save(skipUpdateScore = false) { this.plugin.data = this.data; if (!skipUpdateScore) this.updateScore(); this.plugin.saveDataQueued({ ...this.data, settings: this.plugin.settings }); }
+	save(skipUpdateScore = false) { this.plugin.data = this.data; if (!skipUpdateScore) this.updateScore(); void this.plugin.saveDataQueued({ ...this.data, settings: this.plugin.settings }); }
+
+	async ensureNotesFolder(): Promise<void> {
+		const { vault } = this.plugin.app;
+		if (!vault.getAbstractFileByPath(NOTES_FOLDER)) {
+			try {
+				await vault.createFolder(NOTES_FOLDER);
+			} catch {
+				// Folder already exists or created concurrently
+			}
+		}
+	}
 
 	// ─── Rollover ─────────────────────────────────────────────────────────────
 	async archiveCompletedTasksToNote(tasks: Task[]) {
@@ -333,9 +345,7 @@ class TodoView extends ItemView {
 		const archivePath = `${NOTES_FOLDER}/Archive.md`;
 		const content = `\n### Rollover ${toDisplayDate(dateStr)}\n${lines}\n`;
 
-		try {
-			await vault.createFolder(NOTES_FOLDER);
-		} catch { }
+		await this.ensureNotesFolder();
 
 		try {
 			const existing = vault.getAbstractFileByPath(archivePath);
@@ -346,8 +356,9 @@ class TodoView extends ItemView {
 				const header = `---\ntags: [my-todo-archive]\n---\n\n# Completed Tasks Archive\n`;
 				await vault.create(archivePath, header + content);
 			}
-		} catch (e) {
-			new Notice('Failed to archive tasks: ' + e);
+		} catch (e: unknown) {
+			const err = e instanceof Error ? e.message : String(e);
+			new Notice(`Failed to archive tasks: ${err}`);
 		}
 	}
 
@@ -515,9 +526,7 @@ class TodoView extends ItemView {
 		const { vault } = this.plugin.app;
 		const tags = this.data.categories.map(c => catTag(c.name, c.customTag)).join('\n');
 		const content = `---\ntags: [my-todo]\n---\n\n<!-- Auto-generated by My Todo plugin. Do not edit. -->\n\n${tags}\n`;
-		try {
-			await vault.createFolder(NOTES_FOLDER);
-		} catch { }
+		await this.ensureNotesFolder();
 		const existing = vault.getAbstractFileByPath(TAGS_NOTE);
 		if (existing instanceof TFile) await vault.modify(existing, content);
 		else await vault.create(TAGS_NOTE, content);
@@ -532,7 +541,7 @@ class TodoView extends ItemView {
 		const content = `---\ntags: [${tag.slice(1)}]\n---\n\n# ${cat.name}\n\n${tag}\n\n## Tasks\n\n${taskList}\n`;
 		const safeName = cat.name.replace(/[\\/:*?"<>|.]/g, '-');
 		const path = `${NOTES_FOLDER}/${safeName}.md`;
-		try { await vault.createFolder(NOTES_FOLDER); } catch { }
+		await this.ensureNotesFolder();
 		try {
 			const existing = vault.getAbstractFileByPath(path);
 			if (existing instanceof TFile) {
@@ -543,10 +552,11 @@ class TodoView extends ItemView {
 				new Notice(`Created note: ${cat.name}`);
 			}
 			const leaf = workspace.getLeaf(true);
-			const file = vault.getAbstractFileByPath(path);
-			if (file instanceof TFile) await leaf.openFile(file);
-		} catch (e) {
-			new Notice('Could not create note: ' + e);
+			const targetFile = vault.getAbstractFileByPath(path);
+			if (targetFile instanceof TFile) await leaf.openFile(targetFile);
+		} catch (e: unknown) {
+			const err = e instanceof Error ? e.message : String(e);
+			new Notice(`Could not create note: ${err}`);
 		}
 	}
 
@@ -835,7 +845,7 @@ class TodoView extends ItemView {
 				const catObj = this.data.categories.find(c => c.id === task.categoryId);
 				if (!catObj) return;
 				
-				const block = document.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
+				const block = this.containerEl.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
 				if (block) {
 					block.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					block.classList.add('highlight-flash');
@@ -874,7 +884,7 @@ class TodoView extends ItemView {
 			// Click category tag to scroll to category board
 			tagEl.onclick = (e) => {
 				e.stopPropagation();
-				const block = document.querySelector(`.category-block[data-category-id="${taskCat?.id}"]`);
+				const block = this.containerEl.querySelector(`.category-block[data-category-id="${taskCat?.id}"]`);
 				if (block) {
 					block.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					block.classList.add('highlight-flash');
@@ -918,7 +928,7 @@ class TodoView extends ItemView {
 			menu.style.top = Math.min(rect.bottom, window.innerHeight - 160) + 'px';
 			menu.style.left = Math.min(rect.right - 150, window.innerWidth - 160) + 'px';
 		}
-		document.body.appendChild(menu);
+		this.containerEl.appendChild(menu);
 		this.activeMenu = menu;
 
 		// Edit
@@ -1021,11 +1031,11 @@ export default class MyTodoPlugin extends Plugin {
 	settings: TodoSettings = DEFAULT_SETTINGS;
 	private _savePromise: Promise<void> | null = null;
 	private _saveTimeout: number | null = null;
-	private _pendingSaveData: any = null;
+	private _pendingSaveData: TodoData | null = null;
 	private _pendingSaveResolvers: (() => void)[] = [];
 
 	async onload() {
-		const saved = await this.loadData();
+		const saved = (await this.loadData()) as Partial<TodoData> | null;
 		this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? '' };
 		
 		// Run categoryId migration
@@ -1041,8 +1051,8 @@ export default class MyTodoPlugin extends Plugin {
 		if (!this.settings.themeColor) this.settings.themeColor = '#8a5cf5';
 
 		this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
-		this.addRibbonIcon('check-square', 'My Todo', () => this.activateView());
-		this.addCommand({ id: 'open', name: 'Open', callback: () => this.activateView() });
+		this.addRibbonIcon('check-square', 'My Todo', () => { void this.activateView(); });
+		this.addCommand({ id: 'open', name: 'Open', callback: () => { void this.activateView(); } });
 		this.addSettingTab(new TodoSettingTab(this.app, this));
 
 		this.registerEvent(
@@ -1058,12 +1068,12 @@ export default class MyTodoPlugin extends Plugin {
 		this.registerInterval(window.setInterval(() => {
 			this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(v => {
 				const view = v.view as TodoView;
-				if (view?.runDayRollover) view.runDayRollover();
+				if (view?.runDayRollover) void view.runDayRollover();
 			});
 		}, 60_000));
 	}
 
-	saveDataQueued(data: any): Promise<void> {
+	saveDataQueued(data: TodoData): Promise<void> {
 		return new Promise<void>((resolve) => {
 			this._pendingSaveData = data;
 			this._pendingSaveResolvers.push(resolve);
@@ -1079,7 +1089,7 @@ export default class MyTodoPlugin extends Plugin {
 				this._pendingSaveResolvers = [];
 
 				const saveCall = async () => {
-					await this.saveData(dataToSave);
+					if (dataToSave) await this.saveData(dataToSave);
 					resolvers.forEach(r => r());
 				};
 
@@ -1092,14 +1102,14 @@ export default class MyTodoPlugin extends Plugin {
 		});
 	}
 
-	async saveSettings() { await this.saveDataQueued({ ...this.data, settings: this.settings }); }
-	async onunload() {
+	saveSettings(): Promise<void> { return this.saveDataQueued({ ...this.data, settings: this.settings }); }
+	onunload(): void {
 		if (this._saveTimeout) {
 			window.clearTimeout(this._saveTimeout);
 			this._saveTimeout = null;
 		}
 		if (this._pendingSaveData) {
-			await this.saveData(this._pendingSaveData);
+			void this.saveData(this._pendingSaveData);
 			this._pendingSaveResolvers.forEach(r => r());
 			this._pendingSaveResolvers = [];
 			this._pendingSaveData = null;

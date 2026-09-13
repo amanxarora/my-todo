@@ -149,7 +149,6 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    new import_obsidian.Setting(containerEl).setName("General Settings").setHeading();
     containerEl.createEl("p", { text: "Set the time when your day resets. Values are auto-clamped to valid range.", attr: { style: "color:var(--text-muted);font-size:13px;margin-bottom:16px;" } });
     let hourInput;
     let minuteInput;
@@ -179,8 +178,12 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       text.inputEl.addClass("todo-time-input");
       text.inputEl.placeholder = "hr";
       text.setValue(String(this.plugin.settings.rolloverHour));
-      text.onChange(() => saveTimeSettings());
-      text.inputEl.addEventListener("blur", () => saveTimeSettings());
+      text.onChange(() => {
+        void saveTimeSettings();
+      });
+      text.inputEl.addEventListener("blur", () => {
+        void saveTimeSettings();
+      });
     }).addText((text) => {
       minuteInput = text.inputEl;
       text.inputEl.type = "number";
@@ -189,26 +192,32 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       text.inputEl.addClass("todo-time-input");
       text.inputEl.placeholder = "min";
       text.setValue(String(this.plugin.settings.rolloverMinute));
-      text.onChange(() => saveTimeSettings());
-      text.inputEl.addEventListener("blur", () => saveTimeSettings());
+      text.onChange(() => {
+        void saveTimeSettings();
+      });
+      text.inputEl.addEventListener("blur", () => {
+        void saveTimeSettings();
+      });
     });
     this.updatePreview(containerEl);
     new import_obsidian.Setting(containerEl).setName("Show archive section").setDesc("Display completed task archive inside the plugin. Off by default.").addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.archiveEnabled).onChange((val) => __async(this, null, function* () {
+      (toggle) => toggle.setValue(this.plugin.settings.archiveEnabled).onChange((val) => {
         this.plugin.settings.archiveEnabled = val;
-        yield this.plugin.saveSettings();
-      }))
+        void this.plugin.saveSettings();
+      })
     );
     new import_obsidian.Setting(containerEl).setName("Category Sort Order").setDesc("How should your categories be ordered? You can also pin up to 2 categories to the top.").addDropdown(
-      (drop) => drop.addOption("manual", "Manual (Drag and Drop)").addOption("alpha-asc", "Alphabetical (A-Z)").addOption("alpha-desc", "Alphabetical (Z-A)").addOption("date-asc", "Date Created (Oldest First)").addOption("date-desc", "Date Created (Newest First)").setValue(this.plugin.settings.sortOrder).onChange((val) => __async(this, null, function* () {
-        this.plugin.settings.sortOrder = val;
-        yield this.plugin.saveSettings();
-        this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
-          const view = v.view;
-          if (view == null ? void 0 : view.render)
-            view.render();
-        });
-      }))
+      (drop) => drop.addOption("manual", "Manual (Drag and Drop)").addOption("alpha-asc", "Alphabetical (A-Z)").addOption("alpha-desc", "Alphabetical (Z-A)").addOption("date-asc", "Date Created (Oldest First)").addOption("date-desc", "Date Created (Newest First)").setValue(this.plugin.settings.sortOrder).onChange((val) => {
+        if (val === "manual" || val === "alpha-asc" || val === "alpha-desc" || val === "date-asc" || val === "date-desc") {
+          this.plugin.settings.sortOrder = val;
+          void this.plugin.saveSettings();
+          this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
+            const view = v.view;
+            if (view == null ? void 0 : view.render)
+              view.render();
+          });
+        }
+      })
     );
     new import_obsidian.Setting(containerEl).setName("Theme Color").setDesc("Choose the accent color used throughout the plugin.").setHeading();
     const THEME_COLORS = [
@@ -225,9 +234,9 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       const swatch = swatchWrap.createDiv(`todo-swatch${this.plugin.settings.themeColor === tc.value ? " is-active" : ""}`);
       swatch.style.setProperty("--swatch-color", tc.value);
       swatch.title = tc.label;
-      swatch.onclick = () => __async(this, null, function* () {
+      swatch.onclick = () => {
         this.plugin.settings.themeColor = tc.value;
-        yield this.plugin.saveSettings();
+        void this.plugin.saveSettings();
         swatchWrap.querySelectorAll(".todo-swatch").forEach((s, i) => {
           s.classList.toggle("is-active", THEME_COLORS[i].value === tc.value);
         });
@@ -239,7 +248,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
           }
         });
         new import_obsidian.Notice(`Theme color set to ${tc.label}`);
-      });
+      };
       swatchWrap.appendChild(swatch);
     });
   }
@@ -292,7 +301,18 @@ var TodoView = class extends import_obsidian.ItemView {
     this.plugin.data = this.data;
     if (!skipUpdateScore)
       this.updateScore();
-    this.plugin.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.plugin.settings }));
+    void this.plugin.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.plugin.settings }));
+  }
+  ensureNotesFolder() {
+    return __async(this, null, function* () {
+      const { vault } = this.plugin.app;
+      if (!vault.getAbstractFileByPath(NOTES_FOLDER)) {
+        try {
+          yield vault.createFolder(NOTES_FOLDER);
+        } catch (e) {
+        }
+      }
+    });
   }
   // ─── Rollover ─────────────────────────────────────────────────────────────
   archiveCompletedTasksToNote(tasks) {
@@ -309,10 +329,7 @@ var TodoView = class extends import_obsidian.ItemView {
 ### Rollover ${toDisplayDate(dateStr)}
 ${lines}
 `;
-      try {
-        yield vault.createFolder(NOTES_FOLDER);
-      } catch (e) {
-      }
+      yield this.ensureNotesFolder();
       try {
         const existing = vault.getAbstractFileByPath(archivePath);
         if (existing instanceof import_obsidian.TFile) {
@@ -328,7 +345,8 @@ tags: [my-todo-archive]
           yield vault.create(archivePath, header + content);
         }
       } catch (e) {
-        new import_obsidian.Notice("Failed to archive tasks: " + e);
+        const err = e instanceof Error ? e.message : String(e);
+        new import_obsidian.Notice(`Failed to archive tasks: ${err}`);
       }
     });
   }
@@ -539,10 +557,7 @@ tags: [my-todo]
 
 ${tags}
 `;
-      try {
-        yield vault.createFolder(NOTES_FOLDER);
-      } catch (e) {
-      }
+      yield this.ensureNotesFolder();
       const existing = vault.getAbstractFileByPath(TAGS_NOTE);
       if (existing instanceof import_obsidian.TFile)
         yield vault.modify(existing, content);
@@ -569,10 +584,7 @@ ${taskList}
 `;
       const safeName = cat.name.replace(/[\\/:*?"<>|.]/g, "-");
       const path = `${NOTES_FOLDER}/${safeName}.md`;
-      try {
-        yield vault.createFolder(NOTES_FOLDER);
-      } catch (e) {
-      }
+      yield this.ensureNotesFolder();
       try {
         const existing = vault.getAbstractFileByPath(path);
         if (existing instanceof import_obsidian.TFile) {
@@ -583,11 +595,12 @@ ${taskList}
           new import_obsidian.Notice(`Created note: ${cat.name}`);
         }
         const leaf = workspace.getLeaf(true);
-        const file = vault.getAbstractFileByPath(path);
-        if (file instanceof import_obsidian.TFile)
-          yield leaf.openFile(file);
+        const targetFile = vault.getAbstractFileByPath(path);
+        if (targetFile instanceof import_obsidian.TFile)
+          yield leaf.openFile(targetFile);
       } catch (e) {
-        new import_obsidian.Notice("Could not create note: " + e);
+        const err = e instanceof Error ? e.message : String(e);
+        new import_obsidian.Notice(`Could not create note: ${err}`);
       }
     });
   }
@@ -954,7 +967,7 @@ ${taskList}
         const catObj = this.data.categories.find((c) => c.id === task.categoryId);
         if (!catObj)
           return;
-        const block = document.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
+        const block = this.containerEl.querySelector(`.category-block[data-category-id="${catObj.id}"]`);
         if (block) {
           block.scrollIntoView({ behavior: "smooth", block: "center" });
           block.classList.add("highlight-flash");
@@ -990,7 +1003,7 @@ ${taskList}
       const tagEl = badges.createEl("span", { cls: "task-cat-tag", text: catTag(displayName, taskCat == null ? void 0 : taskCat.customTag) });
       tagEl.onclick = (e) => {
         e.stopPropagation();
-        const block = document.querySelector(`.category-block[data-category-id="${taskCat == null ? void 0 : taskCat.id}"]`);
+        const block = this.containerEl.querySelector(`.category-block[data-category-id="${taskCat == null ? void 0 : taskCat.id}"]`);
         if (block) {
           block.scrollIntoView({ behavior: "smooth", block: "center" });
           block.classList.add("highlight-flash");
@@ -1033,7 +1046,7 @@ ${taskList}
       menu.style.top = Math.min(rect.bottom, window.innerHeight - 160) + "px";
       menu.style.left = Math.min(rect.right - 150, window.innerWidth - 160) + "px";
     }
-    document.body.appendChild(menu);
+    this.containerEl.appendChild(menu);
     this.activeMenu = menu;
     const editItem = menu.createDiv("task-dropdown-item");
     editItem.setText("\u270E Edit");
@@ -1161,8 +1174,12 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
       if (!this.settings.themeColor)
         this.settings.themeColor = "#8a5cf5";
       this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
-      this.addRibbonIcon("check-square", "My Todo", () => this.activateView());
-      this.addCommand({ id: "open", name: "Open", callback: () => this.activateView() });
+      this.addRibbonIcon("check-square", "My Todo", () => {
+        void this.activateView();
+      });
+      this.addCommand({ id: "open", name: "Open", callback: () => {
+        void this.activateView();
+      } });
       this.addSettingTab(new TodoSettingTab(this.app, this));
       this.registerEvent(
         this.app.workspace.on("active-leaf-change", () => {
@@ -1179,7 +1196,7 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
         this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
           const view = v.view;
           if (view == null ? void 0 : view.runDayRollover)
-            view.runDayRollover();
+            void view.runDayRollover();
         });
       }, 6e4));
     });
@@ -1197,7 +1214,8 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
         const resolvers = this._pendingSaveResolvers;
         this._pendingSaveResolvers = [];
         const saveCall = () => __async(this, null, function* () {
-          yield this.saveData(dataToSave);
+          if (dataToSave)
+            yield this.saveData(dataToSave);
           resolvers.forEach((r) => r());
         });
         if (!this._savePromise) {
@@ -1209,23 +1227,19 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
     });
   }
   saveSettings() {
-    return __async(this, null, function* () {
-      yield this.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.settings }));
-    });
+    return this.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.settings }));
   }
   onunload() {
-    return __async(this, null, function* () {
-      if (this._saveTimeout) {
-        window.clearTimeout(this._saveTimeout);
-        this._saveTimeout = null;
-      }
-      if (this._pendingSaveData) {
-        yield this.saveData(this._pendingSaveData);
-        this._pendingSaveResolvers.forEach((r) => r());
-        this._pendingSaveResolvers = [];
-        this._pendingSaveData = null;
-      }
-    });
+    if (this._saveTimeout) {
+      window.clearTimeout(this._saveTimeout);
+      this._saveTimeout = null;
+    }
+    if (this._pendingSaveData) {
+      void this.saveData(this._pendingSaveData);
+      this._pendingSaveResolvers.forEach((r) => r());
+      this._pendingSaveResolvers = [];
+      this._pendingSaveData = null;
+    }
   }
   activateView() {
     return __async(this, null, function* () {
