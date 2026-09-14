@@ -154,8 +154,9 @@ button.cat-menu-btn:hover {
 
 .cat-dropdown {
     position: absolute;
-    top: 42px;
-    right: 8px;
+    top: var(--menu-top, 42px);
+    left: var(--menu-left, auto);
+    right: var(--menu-right, 8px);
     background: var(--background-secondary);
     border: 1px solid var(--background-modifier-border);
     border-radius: 10px;
@@ -395,12 +396,14 @@ button.task-3dot-btn:hover {
 }
 
 .task-dropdown {
-    position: absolute;
+    position: fixed;
+    top: var(--menu-top);
+    left: var(--menu-left);
     background: var(--background-secondary);
     border: 1px solid var(--background-modifier-border);
     border-radius: 8px;
     padding: 4px 0;
-    z-index: 99;
+    z-index: 99999;
     min-width: 140px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }

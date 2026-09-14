@@ -1,24 +1,7 @@
 var __defProp = Object.defineProperty;
-var __defProps = Object.defineProperties;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getOwnPropSymbols = Object.getOwnPropertySymbols;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __propIsEnum = Object.prototype.propertyIsEnumerable;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __spreadValues = (a, b) => {
-  for (var prop in b ||= {})
-    if (__hasOwnProp.call(b, prop))
-      __defNormalProp(a, prop, b[prop]);
-  if (__getOwnPropSymbols)
-    for (var prop of __getOwnPropSymbols(b)) {
-      if (__propIsEnum.call(b, prop))
-        __defNormalProp(a, prop, b[prop]);
-    }
-  return a;
-};
-var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -32,26 +15,6 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-var __async = (__this, __arguments, generator) => {
-  return new Promise((resolve, reject) => {
-    var fulfilled = (value) => {
-      try {
-        step(generator.next(value));
-      } catch (e) {
-        reject(e);
-      }
-    };
-    var rejected = (value) => {
-      try {
-        step(generator.throw(value));
-      } catch (e) {
-        reject(e);
-      }
-    };
-    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
-    step((generator = generator.apply(__this, __arguments)).next());
-  });
-};
 
 // src/main.ts
 var main_exports = {};
@@ -152,7 +115,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.createEl("p", { text: "Set the time when your day resets. Values are auto-clamped to valid range.", attr: { style: "color:var(--text-muted);font-size:13px;margin-bottom:16px;" } });
     let hourInput;
     let minuteInput;
-    const saveTimeSettings = () => __async(this, null, function* () {
+    const saveTimeSettings = async () => {
       let h = parseInt(hourInput.value);
       let m = parseInt(minuteInput.value);
       if (isNaN(h))
@@ -166,10 +129,10 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
       if (this.plugin.settings.rolloverHour !== h || this.plugin.settings.rolloverMinute !== m) {
         this.plugin.settings.rolloverHour = h;
         this.plugin.settings.rolloverMinute = m;
-        yield this.plugin.saveSettings();
+        await this.plugin.saveSettings();
         this.updatePreview(containerEl);
       }
-    });
+    };
     new import_obsidian.Setting(containerEl).setName("End of day time").setDesc("Hour (0-23) and minute (0-59). Saves automatically on change or blur.").addText((text) => {
       hourInput = text.inputEl;
       text.inputEl.type = "number";
@@ -213,7 +176,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
           void this.plugin.saveSettings();
           this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
             const view = v.view;
-            if (view == null ? void 0 : view.render)
+            if (view?.render)
               view.render();
           });
         }
@@ -242,7 +205,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
         });
         this.plugin.app.workspace.getLeavesOfType("my-todo-view").forEach((v) => {
           const view = v.view;
-          if (view == null ? void 0 : view.render) {
+          if (view?.render) {
             view.data = this.plugin.data;
             view.render();
           }
@@ -277,116 +240,108 @@ var TodoView = class extends import_obsidian.ItemView {
   getIcon() {
     return "check-square";
   }
-  onOpen() {
-    return __async(this, null, function* () {
-      this.data = this.plugin.data;
-      yield this.runDayRollover();
-      this.render();
-      this.registerDomEvent(document, "click", (e) => {
-        if (this.activeMenu && !this.activeMenu.contains(e.target)) {
-          this.closeActiveMenu();
-        }
-      });
-      const container = this.containerEl.children[1];
-      this.registerDomEvent(container, "scroll", () => {
-        const btn = container.querySelector(".todo-back-to-top");
-        if (btn) {
-          btn.classList.toggle("is-visible", container.scrollTop > 150);
-          btn.classList.toggle("is-hidden", container.scrollTop <= 150);
-        }
-      });
+  async onOpen() {
+    this.data = this.plugin.data;
+    await this.runDayRollover();
+    this.render();
+    this.registerDomEvent(document, "click", (e) => {
+      if (this.activeMenu && !this.activeMenu.contains(e.target)) {
+        this.closeActiveMenu();
+      }
+    });
+    const container = this.containerEl.children[1];
+    this.registerDomEvent(container, "scroll", () => {
+      const btn = container.querySelector(".todo-back-to-top");
+      if (btn) {
+        btn.classList.toggle("is-visible", container.scrollTop > 150);
+        btn.classList.toggle("is-hidden", container.scrollTop <= 150);
+      }
     });
   }
   save(skipUpdateScore = false) {
     this.plugin.data = this.data;
     if (!skipUpdateScore)
       this.updateScore();
-    void this.plugin.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.plugin.settings }));
+    void this.plugin.saveDataQueued({ ...this.data, settings: this.plugin.settings });
   }
-  ensureNotesFolder() {
-    return __async(this, null, function* () {
-      const { vault } = this.plugin.app;
-      if (!vault.getAbstractFileByPath(NOTES_FOLDER)) {
-        try {
-          yield vault.createFolder(NOTES_FOLDER);
-        } catch (e) {
-        }
+  async ensureNotesFolder() {
+    const { vault } = this.plugin.app;
+    if (!vault.getAbstractFileByPath(NOTES_FOLDER)) {
+      try {
+        await vault.createFolder(NOTES_FOLDER);
+      } catch {
       }
-    });
+    }
   }
   // ─── Rollover ─────────────────────────────────────────────────────────────
-  archiveCompletedTasksToNote(tasks) {
-    return __async(this, null, function* () {
-      const { vault } = this.plugin.app;
-      const dateStr = todayIso();
-      const lines = tasks.map((t) => {
-        const catObj = this.data.categories.find((c) => c.id === t.categoryId);
-        const tagStr = catTag(t.category, catObj == null ? void 0 : catObj.customTag);
-        return `- [x] ${t.text} (${t.estimatedHours}h) - ${tagStr} [completed: ${t.completedDate || dateStr}]`;
-      }).join("\n");
-      const archivePath = `${NOTES_FOLDER}/Archive.md`;
-      const content = `
+  async archiveCompletedTasksToNote(tasks) {
+    const { vault } = this.plugin.app;
+    const dateStr = todayIso();
+    const lines = tasks.map((t) => {
+      const catObj = this.data.categories.find((c) => c.id === t.categoryId);
+      const tagStr = catTag(t.category, catObj?.customTag);
+      return `- [x] ${t.text} (${t.estimatedHours}h) - ${tagStr} [completed: ${t.completedDate || dateStr}]`;
+    }).join("\n");
+    const archivePath = `${NOTES_FOLDER}/Archive.md`;
+    const content = `
 ### Rollover ${toDisplayDate(dateStr)}
 ${lines}
 `;
-      yield this.ensureNotesFolder();
-      try {
-        const existing = vault.getAbstractFileByPath(archivePath);
-        if (existing instanceof import_obsidian.TFile) {
-          const currentContent = yield vault.read(existing);
-          yield vault.modify(existing, currentContent + content);
-        } else {
-          const header = `---
+    await this.ensureNotesFolder();
+    try {
+      const existing = vault.getAbstractFileByPath(archivePath);
+      if (existing instanceof import_obsidian.TFile) {
+        const currentContent = await vault.read(existing);
+        await vault.modify(existing, currentContent + content);
+      } else {
+        const header = `---
 tags: [my-todo-archive]
 ---
 
 # Completed Tasks Archive
 `;
-          yield vault.create(archivePath, header + content);
-        }
-      } catch (e) {
-        const err = e instanceof Error ? e.message : String(e);
-        new import_obsidian.Notice(`Failed to archive tasks: ${err}`);
+        await vault.create(archivePath, header + content);
       }
-    });
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e);
+      new import_obsidian.Notice(`Failed to archive tasks: ${err}`);
+    }
   }
-  runDayRollover() {
-    return __async(this, null, function* () {
-      const { rolloverHour, rolloverMinute } = this.plugin.settings;
-      const logicalDay = getLogicalDay(rolloverHour, rolloverMinute);
-      if (this.data.lastRolloverDate === logicalDay)
-        return;
-      const prevDay = this.data.lastRolloverDate;
-      if (prevDay) {
-        const allTasks = this.data.categories.flatMap((c) => c.tasks);
-        const dailyTasks = allTasks.filter((t) => t.inDaily);
-        const planned = dailyTasks.reduce((s, t) => s + t.estimatedHours, 0);
-        const completed = dailyTasks.filter((t) => t.completed).reduce((s, t) => s + t.estimatedHours, 0);
-        const score = planned === 0 ? 0 : Math.round(completed / planned * 100);
-        const existing = this.data.scores.find((s) => s.date === prevDay);
-        if (existing) {
-          existing.plannedHours = planned;
-          existing.completedHours = completed;
-          existing.score = score;
-        } else
-          this.data.scores.push({ date: prevDay, plannedHours: planned, completedHours: completed, score });
+  async runDayRollover() {
+    const { rolloverHour, rolloverMinute } = this.plugin.settings;
+    const logicalDay = getLogicalDay(rolloverHour, rolloverMinute);
+    if (this.data.lastRolloverDate === logicalDay)
+      return;
+    const prevDay = this.data.lastRolloverDate;
+    if (prevDay) {
+      const allTasks = this.data.categories.flatMap((c) => c.tasks);
+      const dailyTasks = allTasks.filter((t) => t.inDaily);
+      const planned = dailyTasks.reduce((s, t) => s + t.estimatedHours, 0);
+      const completed = dailyTasks.filter((t) => t.completed).reduce((s, t) => s + t.estimatedHours, 0);
+      const score = planned === 0 ? 0 : Math.round(completed / planned * 100);
+      const existing = this.data.scores.find((s) => s.date === prevDay);
+      if (existing) {
+        existing.plannedHours = planned;
+        existing.completedHours = completed;
+        existing.score = score;
+      } else
+        this.data.scores.push({ date: prevDay, plannedHours: planned, completedHours: completed, score });
+    }
+    if (this.plugin.settings.archiveEnabled) {
+      const completedTasks = this.data.categories.flatMap((c) => c.tasks).filter((t) => t.completed);
+      if (completedTasks.length > 0) {
+        await this.archiveCompletedTasksToNote(completedTasks);
       }
-      if (this.plugin.settings.archiveEnabled) {
-        const completedTasks = this.data.categories.flatMap((c) => c.tasks).filter((t) => t.completed);
-        if (completedTasks.length > 0) {
-          yield this.archiveCompletedTasksToNote(completedTasks);
-        }
-      }
-      for (const cat of this.data.categories)
-        cat.tasks = cat.tasks.filter((t) => !t.completed);
-      for (const cat of this.data.categories)
-        for (const task of cat.tasks)
-          if (task.inDaily && !task.completed)
-            task.inDaily = false;
-      this.data.lastRolloverDate = logicalDay;
-      this.save(true);
-      new import_obsidian.Notice("\u{1F305} Day rolled over.");
-    });
+    }
+    for (const cat of this.data.categories)
+      cat.tasks = cat.tasks.filter((t) => !t.completed);
+    for (const cat of this.data.categories)
+      for (const task of cat.tasks)
+        if (task.inDaily && !task.completed)
+          task.inDaily = false;
+    this.data.lastRolloverDate = logicalDay;
+    this.save(true);
+    new import_obsidian.Notice("\u{1F305} Day rolled over.");
   }
   updateScore() {
     const { rolloverHour, rolloverMinute } = this.plugin.settings;
@@ -490,13 +445,13 @@ tags: [my-todo-archive]
   }
   addCategory(name) {
     this.data.categories.push({ id: "cat-" + Date.now(), name, tasks: [], createdDate: todayIso() });
-    this.updateTagsNote();
+    void this.updateTagsNote();
     this.save();
     this.render();
   }
   deleteCategory(catId) {
     this.data.categories = this.data.categories.filter((c) => c.id !== catId);
-    this.updateTagsNote();
+    void this.updateTagsNote();
     this.save();
     this.render();
   }
@@ -506,7 +461,7 @@ tags: [my-todo-archive]
       return;
     const clean = newTag.trim().replace(/\s+/g, "-");
     cat.customTag = clean.startsWith("#") ? clean : "#" + clean;
-    this.updateTagsNote();
+    void this.updateTagsNote();
     this.save();
     this.render();
   }
@@ -516,7 +471,7 @@ tags: [my-todo-archive]
       return;
     cat.name = newName;
     cat.tasks.forEach((t) => t.category = newName);
-    this.updateTagsNote();
+    void this.updateTagsNote();
     this.save();
     this.render();
   }
@@ -545,11 +500,10 @@ tags: [my-todo-archive]
     this.render();
   }
   // ─── Note creation ────────────────────────────────────────────────────────
-  updateTagsNote() {
-    return __async(this, null, function* () {
-      const { vault } = this.plugin.app;
-      const tags = this.data.categories.map((c) => catTag(c.name, c.customTag)).join("\n");
-      const content = `---
+  async updateTagsNote() {
+    const { vault } = this.plugin.app;
+    const tags = this.data.categories.map((c) => catTag(c.name, c.customTag)).join("\n");
+    const content = `---
 tags: [my-todo]
 ---
 
@@ -557,20 +511,18 @@ tags: [my-todo]
 
 ${tags}
 `;
-      yield this.ensureNotesFolder();
-      const existing = vault.getAbstractFileByPath(TAGS_NOTE);
-      if (existing instanceof import_obsidian.TFile)
-        yield vault.modify(existing, content);
-      else
-        yield vault.create(TAGS_NOTE, content);
-    });
+    await this.ensureNotesFolder();
+    const existing = vault.getAbstractFileByPath(TAGS_NOTE);
+    if (existing instanceof import_obsidian.TFile)
+      await vault.modify(existing, content);
+    else
+      await vault.create(TAGS_NOTE, content);
   }
-  createCategoryNote(cat) {
-    return __async(this, null, function* () {
-      const { vault, workspace } = this.plugin.app;
-      const tag = catTag(cat.name, cat.customTag);
-      const taskList = cat.tasks.length > 0 ? cat.tasks.map((t) => `- [ ] ${t.text} (${t.estimatedHours}h)`).join("\n") : "_No tasks yet._";
-      const content = `---
+  async createCategoryNote(cat) {
+    const { vault, workspace } = this.plugin.app;
+    const tag = catTag(cat.name, cat.customTag);
+    const taskList = cat.tasks.length > 0 ? cat.tasks.map((t) => `- [ ] ${t.text} (${t.estimatedHours}h)`).join("\n") : "_No tasks yet._";
+    const content = `---
 tags: [${tag.slice(1)}]
 ---
 
@@ -582,27 +534,26 @@ ${tag}
 
 ${taskList}
 `;
-      const safeName = cat.name.replace(/[\\/:*?"<>|.]/g, "-");
-      const path = `${NOTES_FOLDER}/${safeName}.md`;
-      yield this.ensureNotesFolder();
-      try {
-        const existing = vault.getAbstractFileByPath(path);
-        if (existing instanceof import_obsidian.TFile) {
-          yield vault.modify(existing, content);
-          new import_obsidian.Notice(`Updated note: ${cat.name}`);
-        } else {
-          yield vault.create(path, content);
-          new import_obsidian.Notice(`Created note: ${cat.name}`);
-        }
-        const leaf = workspace.getLeaf(true);
-        const targetFile = vault.getAbstractFileByPath(path);
-        if (targetFile instanceof import_obsidian.TFile)
-          yield leaf.openFile(targetFile);
-      } catch (e) {
-        const err = e instanceof Error ? e.message : String(e);
-        new import_obsidian.Notice(`Could not create note: ${err}`);
+    const safeName = cat.name.replace(/[\\/:*?"<>|.]/g, "-");
+    const path = `${NOTES_FOLDER}/${safeName}.md`;
+    await this.ensureNotesFolder();
+    try {
+      const existing = vault.getAbstractFileByPath(path);
+      if (existing instanceof import_obsidian.TFile) {
+        await vault.modify(existing, content);
+        new import_obsidian.Notice(`Updated note: ${cat.name}`);
+      } else {
+        await vault.create(path, content);
+        new import_obsidian.Notice(`Created note: ${cat.name}`);
       }
-    });
+      const leaf = workspace.getLeaf(true);
+      const targetFile = vault.getAbstractFileByPath(path);
+      if (targetFile instanceof import_obsidian.TFile)
+        await leaf.openFile(targetFile);
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e);
+      new import_obsidian.Notice(`Could not create note: ${err}`);
+    }
   }
   getAllVaultNotes() {
     return this.plugin.app.vault.getMarkdownFiles().map((f) => f.basename).sort();
@@ -647,13 +598,12 @@ ${taskList}
     container.scrollTop = scrollTop;
   }
   renderHeader(root) {
-    var _a, _b, _c;
     const { rolloverHour, rolloverMinute } = this.plugin.settings;
     const today = getLogicalDay(rolloverHour, rolloverMinute);
     const s = this.data.scores.find((x) => x.date === today);
-    const planned = (_a = s == null ? void 0 : s.plannedHours) != null ? _a : 0;
-    const completed = (_b = s == null ? void 0 : s.completedHours) != null ? _b : 0;
-    const score = (_c = s == null ? void 0 : s.score) != null ? _c : 0;
+    const planned = s?.plannedHours ?? 0;
+    const completed = s?.completedHours ?? 0;
+    const score = s?.score ?? 0;
     const header = root.createDiv("todo-header");
     header.createEl("h1", { text: "My Todo" });
     header.createEl("span", { cls: "todo-score-badge", text: planned === 0 ? "No tasks today" : `${completed}h / ${planned}h \xB7 ${score}%` });
@@ -839,9 +789,9 @@ ${taskList}
     const menu = block.createDiv("cat-dropdown");
     if (e) {
       const rect = block.getBoundingClientRect();
-      menu.style.top = e.clientY - rect.top + "px";
-      menu.style.left = e.clientX - rect.left + "px";
-      menu.style.right = "auto";
+      menu.style.setProperty("--menu-top", e.clientY - rect.top + "px");
+      menu.style.setProperty("--menu-left", e.clientX - rect.left + "px");
+      menu.style.setProperty("--menu-right", "auto");
     }
     this.activeMenu = menu;
     if (this.plugin.settings.sortOrder === "manual") {
@@ -1000,10 +950,10 @@ ${taskList}
     if (context === "weekly" || context === "daily") {
       const taskCat = this.data.categories.find((c) => c.id === task.categoryId);
       const displayName = taskCat ? taskCat.name : task.category;
-      const tagEl = badges.createEl("span", { cls: "task-cat-tag", text: catTag(displayName, taskCat == null ? void 0 : taskCat.customTag) });
+      const tagEl = badges.createEl("span", { cls: "task-cat-tag", text: catTag(displayName, taskCat?.customTag) });
       tagEl.onclick = (e) => {
         e.stopPropagation();
-        const block = this.containerEl.querySelector(`.category-block[data-category-id="${taskCat == null ? void 0 : taskCat.id}"]`);
+        const block = this.containerEl.querySelector(`.category-block[data-category-id="${taskCat?.id}"]`);
         if (block) {
           block.scrollIntoView({ behavior: "smooth", block: "center" });
           block.classList.add("highlight-flash");
@@ -1036,15 +986,13 @@ ${taskList}
   }
   showTaskMenu(row, task, context, e) {
     const menu = createEl("div", { cls: "task-dropdown" });
-    menu.style.position = "fixed";
-    menu.style.zIndex = "99999";
     if (e) {
-      menu.style.top = Math.min(e.clientY, window.innerHeight - 160) + "px";
-      menu.style.left = Math.min(e.clientX, window.innerWidth - 160) + "px";
+      menu.style.setProperty("--menu-top", Math.min(e.clientY, window.innerHeight - 160) + "px");
+      menu.style.setProperty("--menu-left", Math.min(e.clientX, window.innerWidth - 160) + "px");
     } else {
       const rect = row.getBoundingClientRect();
-      menu.style.top = Math.min(rect.bottom, window.innerHeight - 160) + "px";
-      menu.style.left = Math.min(rect.right - 150, window.innerWidth - 160) + "px";
+      menu.style.setProperty("--menu-top", Math.min(rect.bottom, window.innerHeight - 160) + "px");
+      menu.style.setProperty("--menu-left", Math.min(rect.right - 150, window.innerWidth - 160) + "px");
     }
     this.containerEl.appendChild(menu);
     this.activeMenu = menu;
@@ -1069,8 +1017,7 @@ ${taskList}
     };
   }
   showTaskEditForm(row, task) {
-    var _a;
-    if ((_a = row.nextElementSibling) == null ? void 0 : _a.classList.contains("task-edit-form"))
+    if (row.nextElementSibling?.classList.contains("task-edit-form"))
       return;
     const form = createEl("div", { cls: "task-edit-form" });
     const r1 = form.createDiv("task-edit-row");
@@ -1109,7 +1056,6 @@ ${taskList}
     textInput.select();
   }
   renderHeatmap(root) {
-    var _a;
     const section = root.createDiv("heatmap-section");
     section.createEl("h1", { cls: "heatmap-section-title", text: "Productivity Heatmap" });
     const logicalDayStr = getLogicalDay(this.plugin.settings.rolloverHour, this.plugin.settings.rolloverMinute);
@@ -1126,7 +1072,7 @@ ${taskList}
       const d2 = new Date(year, month, day);
       const dateStr = localIso(d2);
       const scoreEntry = this.data.scores.find((s) => s.date === dateStr);
-      const score = (_a = scoreEntry == null ? void 0 : scoreEntry.score) != null ? _a : 0;
+      const score = scoreEntry?.score ?? 0;
       const isFuture = day > todayDay;
       const cell = grid.createDiv(`heatmap-cell${isFuture ? " is-future" : ""}${day === todayDay ? " is-today" : ""}`);
       cell.style.backgroundColor = isFuture ? "var(--background-modifier-border)" : this.scoreToColor(score);
@@ -1158,48 +1104,45 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
     this._pendingSaveData = null;
     this._pendingSaveResolvers = [];
   }
-  onload() {
-    return __async(this, null, function* () {
-      var _a, _b, _c, _d;
-      const saved = yield this.loadData();
-      this.data = __spreadProps(__spreadValues(__spreadValues({}, DEFAULT_DATA), saved), { categories: (_a = saved == null ? void 0 : saved.categories) != null ? _a : DEFAULT_DATA.categories, scores: (_b = saved == null ? void 0 : saved.scores) != null ? _b : [], lastRolloverDate: (_c = saved == null ? void 0 : saved.lastRolloverDate) != null ? _c : "" });
-      for (const cat of this.data.categories) {
-        for (const task of cat.tasks) {
-          if (!task.categoryId) {
-            task.categoryId = cat.id;
-          }
+  async onload() {
+    const saved = await this.loadData();
+    this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? "" };
+    for (const cat of this.data.categories) {
+      for (const task of cat.tasks) {
+        if (!task.categoryId) {
+          task.categoryId = cat.id;
         }
       }
-      this.settings = __spreadValues(__spreadValues({}, DEFAULT_SETTINGS), (_d = saved == null ? void 0 : saved.settings) != null ? _d : {});
-      if (!this.settings.themeColor)
-        this.settings.themeColor = "#8a5cf5";
-      this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
-      this.addRibbonIcon("check-square", "My Todo", () => {
-        void this.activateView();
-      });
-      this.addCommand({ id: "open", name: "Open", callback: () => {
-        void this.activateView();
-      } });
-      this.addSettingTab(new TodoSettingTab(this.app, this));
-      this.registerEvent(
-        this.app.workspace.on("active-leaf-change", () => {
-          this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
-            const view = v.view;
-            if (view == null ? void 0 : view.render) {
-              view.data = this.data;
-              view.render();
-            }
-          });
-        })
-      );
-      this.registerInterval(window.setInterval(() => {
+    }
+    this.settings = { ...DEFAULT_SETTINGS, ...saved?.settings ?? {} };
+    if (!this.settings.themeColor)
+      this.settings.themeColor = "#8a5cf5";
+    this.registerView(VIEW_TYPE, (leaf) => new TodoView(leaf, this));
+    this.addRibbonIcon("check-square", "My Todo", () => {
+      void this.activateView();
+    });
+    this.addCommand({ id: "open", name: "Open", callback: () => {
+      void this.activateView();
+    } });
+    this.addSettingTab(new TodoSettingTab(this.app, this));
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", () => {
         this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
           const view = v.view;
-          if (view == null ? void 0 : view.runDayRollover)
-            void view.runDayRollover();
+          if (view?.render) {
+            view.data = this.data;
+            view.render();
+          }
         });
-      }, 6e4));
-    });
+      })
+    );
+    this.registerInterval(window.setInterval(() => {
+      this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach((v) => {
+        const view = v.view;
+        if (view?.runDayRollover)
+          void view.runDayRollover();
+      });
+    }, 6e4));
   }
   saveDataQueued(data) {
     return new Promise((resolve) => {
@@ -1213,11 +1156,11 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
         const dataToSave = this._pendingSaveData;
         const resolvers = this._pendingSaveResolvers;
         this._pendingSaveResolvers = [];
-        const saveCall = () => __async(this, null, function* () {
+        const saveCall = async () => {
           if (dataToSave)
-            yield this.saveData(dataToSave);
+            await this.saveData(dataToSave);
           resolvers.forEach((r) => r());
-        });
+        };
         if (!this._savePromise) {
           this._savePromise = saveCall();
         } else {
@@ -1227,7 +1170,7 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
     });
   }
   saveSettings() {
-    return this.saveDataQueued(__spreadProps(__spreadValues({}, this.data), { settings: this.settings }));
+    return this.saveDataQueued({ ...this.data, settings: this.settings });
   }
   onunload() {
     if (this._saveTimeout) {
@@ -1241,16 +1184,13 @@ var MyTodoPlugin = class extends import_obsidian.Plugin {
       this._pendingSaveData = null;
     }
   }
-  activateView() {
-    return __async(this, null, function* () {
-      var _a;
-      const { workspace } = this.app;
-      let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
-      if (!leaf) {
-        leaf = (_a = workspace.getRightLeaf(false)) != null ? _a : workspace.getLeaf(true);
-        yield leaf.setViewState({ type: VIEW_TYPE, active: true });
-      }
-      workspace.revealLeaf(leaf);
-    });
+  async activateView() {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(VIEW_TYPE)[0];
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf(true);
+      await leaf.setViewState({ type: VIEW_TYPE, active: true });
+    }
+    workspace.setActiveLeaf(leaf, { focus: true });
   }
 };

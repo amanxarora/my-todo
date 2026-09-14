@@ -471,13 +471,13 @@ class TodoView extends ItemView {
 
 	addCategory(name: string) {
 		this.data.categories.push({ id: 'cat-' + Date.now(), name, tasks: [], createdDate: todayIso() });
-		this.updateTagsNote();
+		void this.updateTagsNote();
 		this.save(); this.render();
 	}
 
 	deleteCategory(catId: string) {
 		this.data.categories = this.data.categories.filter(c => c.id !== catId);
-		this.updateTagsNote();
+		void this.updateTagsNote();
 		this.save(); this.render();
 	}
 
@@ -489,7 +489,7 @@ class TodoView extends ItemView {
 		cat.customTag = clean.startsWith('#') ? clean : '#' + clean;
 		// Update category field on all tasks so badges reflect new tag
 		// (category name unchanged, only display tag changes)
-		this.updateTagsNote();
+		void this.updateTagsNote();
 		this.save(); this.render();
 	}
 
@@ -497,7 +497,7 @@ class TodoView extends ItemView {
 		const cat = this.data.categories.find(c => c.id === catId);
 		if (!cat) return;
 		cat.name = newName; cat.tasks.forEach(t => t.category = newName);
-		this.updateTagsNote();
+		void this.updateTagsNote();
 		this.save(); this.render();
 	}
 
@@ -757,9 +757,9 @@ class TodoView extends ItemView {
 		const menu = block.createDiv('cat-dropdown');
 		if (e) {
 			const rect = block.getBoundingClientRect();
-			menu.style.top = (e.clientY - rect.top) + 'px';
-			menu.style.left = (e.clientX - rect.left) + 'px';
-			menu.style.right = 'auto';
+			menu.style.setProperty('--menu-top', (e.clientY - rect.top) + 'px');
+			menu.style.setProperty('--menu-left', (e.clientX - rect.left) + 'px');
+			menu.style.setProperty('--menu-right', 'auto');
 		}
 		this.activeMenu = menu;
 
@@ -918,15 +918,13 @@ class TodoView extends ItemView {
 
 	showTaskMenu(row: HTMLElement, task: Task, context: 'daily' | 'weekly' | 'category', e?: MouseEvent) {
 		const menu = createEl('div', { cls: 'task-dropdown' });
-		menu.style.position = 'fixed';
-		menu.style.zIndex = '99999';
 		if (e) {
-			menu.style.top = Math.min(e.clientY, window.innerHeight - 160) + 'px';
-			menu.style.left = Math.min(e.clientX, window.innerWidth - 160) + 'px';
+			menu.style.setProperty('--menu-top', Math.min(e.clientY, window.innerHeight - 160) + 'px');
+			menu.style.setProperty('--menu-left', Math.min(e.clientX, window.innerWidth - 160) + 'px');
 		} else {
 			const rect = row.getBoundingClientRect();
-			menu.style.top = Math.min(rect.bottom, window.innerHeight - 160) + 'px';
-			menu.style.left = Math.min(rect.right - 150, window.innerWidth - 160) + 'px';
+			menu.style.setProperty('--menu-top', Math.min(rect.bottom, window.innerHeight - 160) + 'px');
+			menu.style.setProperty('--menu-left', Math.min(rect.right - 150, window.innerWidth - 160) + 'px');
 		}
 		this.containerEl.appendChild(menu);
 		this.activeMenu = menu;
@@ -1123,6 +1121,6 @@ export default class MyTodoPlugin extends Plugin {
 			leaf = workspace.getRightLeaf(false) ?? workspace.getLeaf(true);
 			await leaf.setViewState({ type: VIEW_TYPE, active: true });
 		}
-		workspace.revealLeaf(leaf);
+		workspace.setActiveLeaf(leaf, { focus: true });
 	}
 }

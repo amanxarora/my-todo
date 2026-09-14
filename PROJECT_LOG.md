@@ -136,4 +136,14 @@ To appear in the official in-app Obsidian Community Plugins browser:
 * **Scoped DOM Operations:** Replaced unscoped `document.querySelector` and `document.body` mountings with view-scoped `this.containerEl`.
 * **Async & Type Hardening:** Synchronous `onunload()`, explicit `TodoData` typing across save queues, and `void` handling for event callbacks.
 
+---
+
+## 10. Version 1.2.4 Scorecard Hardening (<50 Issues Target)
+
+* **TypeScript Lib Upgrade (ES2020):** Updated `tsconfig.json` target and lib to `ES2020` (previously `ES6`), providing typings for `padStart` and `flatMap` and resolving ~49 `@typescript-eslint/no-unsafe-*` issues.
+* **Unsupported API Replacement:** Replaced `workspace.revealLeaf` with `workspace.setActiveLeaf(leaf, { focus: true })` ensuring compatibility with `minAppVersion: 1.4.0`.
+* **Dynamic CSS Variable Positioning:** Migrated inline style assignments on dropdown menus (`cat-dropdown`, `task-dropdown`) to CSS custom variables (`--menu-top`, `--menu-left`), resolving `no-static-styles-assignment`.
+* **Floating Promises Hardening:** Wrapped unawaited background `this.updateTagsNote()` calls with `void` to satisfy `@typescript-eslint/no-floating-promises`.
+
+
 
