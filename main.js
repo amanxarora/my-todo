@@ -195,7 +195,7 @@ var TodoSettingTab = class extends import_obsidian.PluginSettingTab {
     const swatchWrap = containerEl.createDiv("todo-swatch-wrap");
     THEME_COLORS.forEach((tc) => {
       const swatch = swatchWrap.createDiv(`todo-swatch${this.plugin.settings.themeColor === tc.value ? " is-active" : ""}`);
-      swatch.style.setProperty("--swatch-color", tc.value);
+      swatch.setCssProps({ "--swatch-color": tc.value });
       swatch.title = tc.label;
       swatch.onclick = () => {
         this.plugin.settings.themeColor = tc.value;
@@ -579,11 +579,13 @@ ${taskList}
     const tcFaint = tc + "18";
     const tcFaint15 = tc + "15";
     container.addClass("my-todo-root-container");
-    container.style.setProperty("--todo-tc", tc);
-    container.style.setProperty("--todo-tc-light", tcLight);
-    container.style.setProperty("--todo-tc-mid", tcMid);
-    container.style.setProperty("--todo-tc-faint", tcFaint);
-    container.style.setProperty("--todo-tc-faint15", tcFaint15);
+    container.setCssProps({
+      "--todo-tc": tc,
+      "--todo-tc-light": tcLight,
+      "--todo-tc-mid": tcMid,
+      "--todo-tc-faint": tcFaint,
+      "--todo-tc-faint15": tcFaint15
+    });
     const root = container.createDiv("my-todo-root");
     this.renderHeader(root);
     this.renderDaily(root);
@@ -606,8 +608,8 @@ ${taskList}
     const score = s?.score ?? 0;
     const header = root.createDiv("todo-header");
     header.createEl("h1", { text: "My Todo" });
-    header.createEl("span", { cls: "todo-score-badge", text: planned === 0 ? "No tasks today" : `${completed}h / ${planned}h \xB7 ${score}%` });
-    header.createEl("span", { cls: "todo-rollover-info", text: `Resets ${String(rolloverHour).padStart(2, "0")}:${String(rolloverMinute).padStart(2, "0")}` });
+    header.createSpan({ cls: "todo-score-badge", text: planned === 0 ? "No tasks today" : `${completed}h / ${planned}h \xB7 ${score}%` });
+    header.createSpan({ cls: "todo-rollover-info", text: `Resets ${String(rolloverHour).padStart(2, "0")}:${String(rolloverMinute).padStart(2, "0")}` });
   }
   renderDaily(root) {
     const card = root.createDiv("kanban-card");
@@ -707,21 +709,19 @@ ${taskList}
     block.setAttribute("data-category-id", cat.id);
     const catHdr = block.createDiv("category-header");
     if (cat.color)
-      catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || "#8a5cf5")) + "60";
+      catHdr.setCssStyles({ borderBottomColor: (cat.color || (this.plugin.settings.themeColor || "#8a5cf5")) + "60" });
     catHdr.oncontextmenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.closeActiveMenu();
       this.showCategoryMenu(block, cat, e);
     };
-    const nameEl = catHdr.createEl("span", { cls: "category-name", text: (cat.pinned ? "\u2B50 " : "") + cat.name });
+    const nameEl = catHdr.createSpan({ cls: "category-name", text: (cat.pinned ? "\u2B50 " : "") + cat.name });
     if (cat.color)
-      nameEl.style.color = cat.color;
-    const tagEl = catHdr.createEl("span", { cls: "category-tag", text: catTag(cat.name, cat.customTag) });
-    if (cat.color) {
-      tagEl.style.color = cat.color;
-      tagEl.style.background = cat.color + "18";
-    }
+      nameEl.setCssStyles({ color: cat.color });
+    const tagEl = catHdr.createSpan({ cls: "category-tag", text: catTag(cat.name, cat.customTag) });
+    if (cat.color)
+      tagEl.setCssStyles({ color: cat.color, background: cat.color + "18" });
     const menuBtn = catHdr.createEl("button", { cls: "cat-menu-btn", text: "\u22EF" });
     menuBtn.onclick = (e) => {
       e.stopPropagation();
@@ -789,9 +789,11 @@ ${taskList}
     const menu = block.createDiv("cat-dropdown");
     if (e) {
       const rect = block.getBoundingClientRect();
-      menu.style.setProperty("--menu-top", e.clientY - rect.top + "px");
-      menu.style.setProperty("--menu-left", e.clientX - rect.left + "px");
-      menu.style.setProperty("--menu-right", "auto");
+      menu.addClass("context-positioned");
+      menu.setCssProps({
+        "--menu-top": e.clientY - rect.top + "px",
+        "--menu-left": e.clientX - rect.left + "px"
+      });
     }
     this.activeMenu = menu;
     if (this.plugin.settings.sortOrder === "manual") {
@@ -852,7 +854,7 @@ ${taskList}
     createNote.setText("\u{1F4DD} Create note");
     createNote.onclick = () => {
       this.closeActiveMenu();
-      this.createCategoryNote(cat);
+      void this.createCategoryNote(cat);
     };
     const renameTag = menu.createDiv("cat-dropdown-item");
     renameTag.setText("\u{1F3F7} Rename tag");
@@ -886,7 +888,7 @@ ${taskList}
     const swatches = menu.createDiv("color-swatches");
     CATEGORY_COLORS.forEach((c) => {
       const sw = swatches.createDiv("color-swatch");
-      sw.style.background = c.value || "#555555";
+      sw.setCssStyles({ background: c.value || "#555555" });
       if (cat.color === c.value)
         sw.addClass("active");
       sw.title = c.label;
@@ -929,7 +931,7 @@ ${taskList}
     const checkbox = left.createDiv(`task-checkbox${task.completed ? " checked" : ""}`);
     checkbox.onclick = () => this.toggleComplete(task.id);
     const body = left.createDiv("task-body");
-    const textEl = body.createEl("span", { cls: "task-text", text: task.text });
+    const textEl = body.createSpan({ cls: "task-text", text: task.text });
     if (!task.completed) {
       if (overdue === "orange")
         textEl.addClass("overdue-orange");
@@ -937,9 +939,9 @@ ${taskList}
         textEl.addClass("overdue-red");
     }
     const badges = body.createDiv("task-badges");
-    badges.createEl("span", { cls: "task-hours", text: `${task.estimatedHours}h` });
+    badges.createSpan({ cls: "task-hours", text: `${task.estimatedHours}h` });
     if (task.dueDate) {
-      const dueEl = badges.createEl("span", { cls: "task-due", text: toDisplayDate(task.dueDate) });
+      const dueEl = badges.createSpan({ cls: "task-due", text: toDisplayDate(task.dueDate) });
       if (!task.completed) {
         if (overdue === "orange")
           dueEl.addClass("overdue-orange");
@@ -950,7 +952,7 @@ ${taskList}
     if (context === "weekly" || context === "daily") {
       const taskCat = this.data.categories.find((c) => c.id === task.categoryId);
       const displayName = taskCat ? taskCat.name : task.category;
-      const tagEl = badges.createEl("span", { cls: "task-cat-tag", text: catTag(displayName, taskCat?.customTag) });
+      const tagEl = badges.createSpan({ cls: "task-cat-tag", text: catTag(displayName, taskCat?.customTag) });
       tagEl.onclick = (e) => {
         e.stopPropagation();
         const block = this.containerEl.querySelector(`.category-block[data-category-id="${taskCat?.id}"]`);
@@ -985,16 +987,19 @@ ${taskList}
     };
   }
   showTaskMenu(row, task, context, e) {
-    const menu = createEl("div", { cls: "task-dropdown" });
+    const menu = this.containerEl.createDiv("task-dropdown");
     if (e) {
-      menu.style.setProperty("--menu-top", Math.min(e.clientY, window.innerHeight - 160) + "px");
-      menu.style.setProperty("--menu-left", Math.min(e.clientX, window.innerWidth - 160) + "px");
+      menu.setCssProps({
+        "--menu-top": Math.min(e.clientY, window.innerHeight - 160) + "px",
+        "--menu-left": Math.min(e.clientX, window.innerWidth - 160) + "px"
+      });
     } else {
       const rect = row.getBoundingClientRect();
-      menu.style.setProperty("--menu-top", Math.min(rect.bottom, window.innerHeight - 160) + "px");
-      menu.style.setProperty("--menu-left", Math.min(rect.right - 150, window.innerWidth - 160) + "px");
+      menu.setCssProps({
+        "--menu-top": Math.min(rect.bottom, window.innerHeight - 160) + "px",
+        "--menu-left": Math.min(rect.right - 150, window.innerWidth - 160) + "px"
+      });
     }
-    this.containerEl.appendChild(menu);
     this.activeMenu = menu;
     const editItem = menu.createDiv("task-dropdown-item");
     editItem.setText("\u270E Edit");
@@ -1019,7 +1024,7 @@ ${taskList}
   showTaskEditForm(row, task) {
     if (row.nextElementSibling?.classList.contains("task-edit-form"))
       return;
-    const form = createEl("div", { cls: "task-edit-form" });
+    const form = createDiv("task-edit-form");
     const r1 = form.createDiv("task-edit-row");
     const textInput = r1.createEl("input", { type: "text", cls: "edit-text" });
     textInput.value = task.text;
@@ -1075,16 +1080,16 @@ ${taskList}
       const score = scoreEntry?.score ?? 0;
       const isFuture = day > todayDay;
       const cell = grid.createDiv(`heatmap-cell${isFuture ? " is-future" : ""}${day === todayDay ? " is-today" : ""}`);
-      cell.style.backgroundColor = isFuture ? "var(--background-modifier-border)" : this.scoreToColor(score);
+      cell.setCssStyles({ backgroundColor: isFuture ? "var(--background-modifier-border)" : this.scoreToColor(score) });
       cell.createDiv("heatmap-tooltip").setText(scoreEntry ? `${toDisplayDate(dateStr)}: ${score}%` : `${toDisplayDate(dateStr)}: no tasks`);
     }
     const legend = section.createDiv("heatmap-legend");
-    legend.createEl("span", { text: "Less" });
+    legend.createSpan({ text: "Less" });
     [0, 25, 50, 75, 100].forEach((v) => {
       const lc = legend.createDiv("legend-cell");
-      lc.style.background = this.scoreToColor(v);
+      lc.setCssStyles({ background: this.scoreToColor(v) });
     });
-    legend.createEl("span", { text: "More" });
+    legend.createSpan({ text: "More" });
   }
   scoreToColor(score) {
     if (score === 0)

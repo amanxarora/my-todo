@@ -39,6 +39,10 @@ interface TodoData {
 	lastRolloverDate: string;
 }
 
+interface StoredPluginData extends TodoData {
+	settings?: Partial<TodoSettings>;
+}
+
 interface TodoSettings {
 	rolloverHour: number;
 	rolloverMinute: number;
@@ -255,7 +259,7 @@ class TodoSettingTab extends PluginSettingTab {
 
 		THEME_COLORS.forEach(tc => {
 			const swatch = swatchWrap.createDiv(`todo-swatch${this.plugin.settings.themeColor === tc.value ? ' is-active' : ''}`);
-			swatch.style.setProperty('--swatch-color', tc.value);
+			swatch.setCssProps({ '--swatch-color': tc.value });
 			swatch.title = tc.label;
 			swatch.onclick = () => {
 				this.plugin.settings.themeColor = tc.value;
@@ -586,11 +590,13 @@ class TodoView extends ItemView {
 		const tcFaint = tc + '18';
 		const tcFaint15 = tc + '15';
 		container.addClass('my-todo-root-container');
-		container.style.setProperty('--todo-tc', tc);
-		container.style.setProperty('--todo-tc-light', tcLight);
-		container.style.setProperty('--todo-tc-mid', tcMid);
-		container.style.setProperty('--todo-tc-faint', tcFaint);
-		container.style.setProperty('--todo-tc-faint15', tcFaint15);
+		container.setCssProps({
+			'--todo-tc': tc,
+			'--todo-tc-light': tcLight,
+			'--todo-tc-mid': tcMid,
+			'--todo-tc-faint': tcFaint,
+			'--todo-tc-faint15': tcFaint15,
+		});
 		const root = container.createDiv('my-todo-root');
 		this.renderHeader(root);
 		this.renderDaily(root);
@@ -615,8 +621,8 @@ class TodoView extends ItemView {
 		const planned = s?.plannedHours ?? 0; const completed = s?.completedHours ?? 0; const score = s?.score ?? 0;
 		const header = root.createDiv('todo-header');
 		header.createEl('h1', { text: 'My Todo' });
-		header.createEl('span', { cls: 'todo-score-badge', text: planned === 0 ? 'No tasks today' : `${completed}h / ${planned}h · ${score}%` });
-		header.createEl('span', { cls: 'todo-rollover-info', text: `Resets ${String(rolloverHour).padStart(2, '0')}:${String(rolloverMinute).padStart(2, '0')}` });
+		header.createSpan({ cls: 'todo-score-badge', text: planned === 0 ? 'No tasks today' : `${completed}h / ${planned}h · ${score}%` });
+		header.createSpan({ cls: 'todo-rollover-info', text: `Resets ${String(rolloverHour).padStart(2, '0')}:${String(rolloverMinute).padStart(2, '0')}` });
 	}
 
 	renderDaily(root: HTMLElement) {
@@ -691,15 +697,15 @@ class TodoView extends ItemView {
 		const block = container.createDiv('category-block');
 		block.setAttribute('data-category-id', cat.id);
 		const catHdr = block.createDiv('category-header');
-		if (cat.color) catHdr.style.borderBottomColor = (cat.color || (this.plugin.settings.themeColor || '#8a5cf5')) + '60';
+		if (cat.color) catHdr.setCssStyles({ borderBottomColor: (cat.color || (this.plugin.settings.themeColor || '#8a5cf5')) + '60' });
 
 		catHdr.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.closeActiveMenu(); this.showCategoryMenu(block, cat, e); };
 
-		const nameEl = catHdr.createEl('span', { cls: 'category-name', text: (cat.pinned ? '⭐ ' : '') + cat.name });
-		if (cat.color) nameEl.style.color = cat.color;
+		const nameEl = catHdr.createSpan({ cls: 'category-name', text: (cat.pinned ? '⭐ ' : '') + cat.name });
+		if (cat.color) nameEl.setCssStyles({ color: cat.color });
 
-		const tagEl = catHdr.createEl('span', { cls: 'category-tag', text: catTag(cat.name, cat.customTag) });
-		if (cat.color) { tagEl.style.color = cat.color; tagEl.style.background = cat.color + '18'; }
+		const tagEl = catHdr.createSpan({ cls: 'category-tag', text: catTag(cat.name, cat.customTag) });
+		if (cat.color) tagEl.setCssStyles({ color: cat.color, background: cat.color + '18' });
 
 		const menuBtn = catHdr.createEl('button', { cls: 'cat-menu-btn', text: '⋯' });
 		menuBtn.onclick = (e) => { e.stopPropagation(); this.closeActiveMenu(); this.showCategoryMenu(block, cat); };
@@ -757,9 +763,11 @@ class TodoView extends ItemView {
 		const menu = block.createDiv('cat-dropdown');
 		if (e) {
 			const rect = block.getBoundingClientRect();
-			menu.style.setProperty('--menu-top', (e.clientY - rect.top) + 'px');
-			menu.style.setProperty('--menu-left', (e.clientX - rect.left) + 'px');
-			menu.style.setProperty('--menu-right', 'auto');
+			menu.addClass('context-positioned');
+			menu.setCssProps({
+				'--menu-top': (e.clientY - rect.top) + 'px',
+				'--menu-left': (e.clientX - rect.left) + 'px',
+			});
 		}
 		this.activeMenu = menu;
 
@@ -797,7 +805,7 @@ class TodoView extends ItemView {
 		};
 
 		const createNote = menu.createDiv('cat-dropdown-item'); createNote.setText('📝 Create note');
-		createNote.onclick = () => { this.closeActiveMenu(); this.createCategoryNote(cat); };
+		createNote.onclick = () => { this.closeActiveMenu(); void this.createCategoryNote(cat); };
 
 		const renameTag = menu.createDiv('cat-dropdown-item'); renameTag.setText('🏷 Rename tag');
 		renameTag.onclick = () => {
@@ -822,7 +830,7 @@ class TodoView extends ItemView {
 		const swatches = menu.createDiv('color-swatches');
 		CATEGORY_COLORS.forEach(c => {
 			const sw = swatches.createDiv('color-swatch');
-			sw.style.background = c.value || '#555555';
+			sw.setCssStyles({ background: c.value || '#555555' });
 			if (cat.color === c.value) sw.addClass('active');
 			sw.title = c.label; sw.onclick = () => { this.closeActiveMenu(); this.setCategoryColor(cat.id, c.value); };
 		});
@@ -859,16 +867,16 @@ class TodoView extends ItemView {
 		checkbox.onclick = () => this.toggleComplete(task.id);
 
 		const body = left.createDiv('task-body');
-		const textEl = body.createEl('span', { cls: 'task-text', text: task.text });
+		const textEl = body.createSpan({ cls: 'task-text', text: task.text });
 		if (!task.completed) {
 			if (overdue === 'orange') textEl.addClass('overdue-orange');
 			if (overdue === 'red') textEl.addClass('overdue-red');
 		}
 
 		const badges = body.createDiv('task-badges');
-		badges.createEl('span', { cls: 'task-hours', text: `${task.estimatedHours}h` });
+		badges.createSpan({ cls: 'task-hours', text: `${task.estimatedHours}h` });
 		if (task.dueDate) {
-			const dueEl = badges.createEl('span', { cls: 'task-due', text: toDisplayDate(task.dueDate) });
+			const dueEl = badges.createSpan({ cls: 'task-due', text: toDisplayDate(task.dueDate) });
 			if (!task.completed) {
 				if (overdue === 'orange') dueEl.addClass('overdue-orange');
 				if (overdue === 'red') dueEl.addClass('overdue-red');
@@ -879,7 +887,7 @@ class TodoView extends ItemView {
 			// find customTag for this task's category
 			const taskCat = this.data.categories.find(c => c.id === task.categoryId);
 			const displayName = taskCat ? taskCat.name : task.category;
-			const tagEl = badges.createEl('span', { cls: 'task-cat-tag', text: catTag(displayName, taskCat?.customTag) });
+			const tagEl = badges.createSpan({ cls: 'task-cat-tag', text: catTag(displayName, taskCat?.customTag) });
 			
 			// Click category tag to scroll to category board
 			tagEl.onclick = (e) => {
@@ -917,16 +925,19 @@ class TodoView extends ItemView {
 	}
 
 	showTaskMenu(row: HTMLElement, task: Task, context: 'daily' | 'weekly' | 'category', e?: MouseEvent) {
-		const menu = createEl('div', { cls: 'task-dropdown' });
+		const menu = this.containerEl.createDiv('task-dropdown');
 		if (e) {
-			menu.style.setProperty('--menu-top', Math.min(e.clientY, window.innerHeight - 160) + 'px');
-			menu.style.setProperty('--menu-left', Math.min(e.clientX, window.innerWidth - 160) + 'px');
+			menu.setCssProps({
+				'--menu-top': Math.min(e.clientY, window.innerHeight - 160) + 'px',
+				'--menu-left': Math.min(e.clientX, window.innerWidth - 160) + 'px',
+			});
 		} else {
 			const rect = row.getBoundingClientRect();
-			menu.style.setProperty('--menu-top', Math.min(rect.bottom, window.innerHeight - 160) + 'px');
-			menu.style.setProperty('--menu-left', Math.min(rect.right - 150, window.innerWidth - 160) + 'px');
+			menu.setCssProps({
+				'--menu-top': Math.min(rect.bottom, window.innerHeight - 160) + 'px',
+				'--menu-left': Math.min(rect.right - 150, window.innerWidth - 160) + 'px',
+			});
 		}
-		this.containerEl.appendChild(menu);
 		this.activeMenu = menu;
 
 		// Edit
@@ -951,7 +962,7 @@ class TodoView extends ItemView {
 	showTaskEditForm(row: HTMLElement, task: Task) {
 		if (row.nextElementSibling?.classList.contains('task-edit-form')) return; // Prevent duplication
 		// Insert edit form right below the task row
-		const form = createEl('div', { cls: 'task-edit-form' });
+		const form = createDiv('task-edit-form');
 
 		const r1 = form.createDiv('task-edit-row');
 		const textInput = r1.createEl('input', { type: 'text', cls: 'edit-text' });
@@ -1004,14 +1015,14 @@ class TodoView extends ItemView {
 			const isFuture = day > todayDay;
 
 			const cell = grid.createDiv(`heatmap-cell${isFuture ? ' is-future' : ''}${day === todayDay ? ' is-today' : ''}`);
-			cell.style.backgroundColor = isFuture ? 'var(--background-modifier-border)' : this.scoreToColor(score);
+			cell.setCssStyles({ backgroundColor: isFuture ? 'var(--background-modifier-border)' : this.scoreToColor(score) });
 			cell.createDiv('heatmap-tooltip').setText(scoreEntry ? `${toDisplayDate(dateStr)}: ${score}%` : `${toDisplayDate(dateStr)}: no tasks`);
 		}
 
 		const legend = section.createDiv('heatmap-legend');
-		legend.createEl('span', { text: 'Less' });
-		[0, 25, 50, 75, 100].forEach(v => { const lc = legend.createDiv('legend-cell'); lc.style.background = this.scoreToColor(v); });
-		legend.createEl('span', { text: 'More' });
+		legend.createSpan({ text: 'Less' });
+		[0, 25, 50, 75, 100].forEach(v => { const lc = legend.createDiv('legend-cell'); lc.setCssStyles({ background: this.scoreToColor(v) }); });
+		legend.createSpan({ text: 'More' });
 	}
 
 	scoreToColor(score: number): string {
@@ -1033,7 +1044,7 @@ export default class MyTodoPlugin extends Plugin {
 	private _pendingSaveResolvers: (() => void)[] = [];
 
 	async onload() {
-		const saved = (await this.loadData()) as Partial<TodoData> | null;
+		const saved = (await this.loadData()) as Partial<StoredPluginData> | null;
 		this.data = { ...DEFAULT_DATA, ...saved, categories: saved?.categories ?? DEFAULT_DATA.categories, scores: saved?.scores ?? [], lastRolloverDate: saved?.lastRolloverDate ?? '' };
 		
 		// Run categoryId migration

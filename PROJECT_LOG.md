@@ -145,5 +145,16 @@ To appear in the official in-app Obsidian Community Plugins browser:
 * **Dynamic CSS Variable Positioning:** Migrated inline style assignments on dropdown menus (`cat-dropdown`, `task-dropdown`) to CSS custom variables (`--menu-top`, `--menu-left`), resolving `no-static-styles-assignment`.
 * **Floating Promises Hardening:** Wrapped unawaited background `this.updateTagsNote()` calls with `void` to satisfy `@typescript-eslint/no-floating-promises`.
 
+---
+
+## 11. Version 1.2.5 Full Scorecard Hardening & Zero-Risk Compliance
+
+* **DOM Element Creation Standards (`prefer-create-el`):** Converted all generic `createEl('span')` and `createEl('div')` calls to Obsidian's dedicated `createSpan()` and `createDiv()` DOM helpers across headers, badges, tags, and edit forms (12 instances resolved).
+* **Elimination of Direct Style Mutations (`no-static-styles-assignment`):** Completely removed all `.style` assignments across the codebase. Adopted Obsidian's official `setCssProps()` and `setCssStyles()` APIs and `.context-positioned` CSS class in `styles.css`.
+* **Strict Settings Data Typing (`no-unsafe-assignment`):** Added `StoredPluginData` interface extending `TodoData` to strongly type persisted settings, resolving the `@typescript-eslint/no-unsafe-assignment` warning.
+* **Floating Promise Resolution (`no-floating-promises`):** Prefixed asynchronous `createCategoryNote()` call with `void` operator.
+* **Design & Functional Parity:** Visual design, behavior, and UI layouts remain fully preserved with zero regression.
+
+
 
 
