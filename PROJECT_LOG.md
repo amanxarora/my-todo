@@ -164,6 +164,15 @@ To appear in the official in-app Obsidian Community Plugins browser:
 * **Full Mobile & Desktop Alignment:** Native menus support touch gestures, keyboard navigation, and automatic viewport boundary clamping.
 * **Scorecard Safety:** Uses official `Menu` API (available since v0.11.0), zero inline styles, zero DOM creation warnings, and zero floating promises.
 
+---
+
+## 13. Version 1.2.7 Immediate UI Redraw on Enter (GitHub Issue #1 Fix)
+
+* **Immediate Category Visibility:** Blurred `nameInput` on submit so the `input:focus` guard in `render()` does not block immediate redraw when confirming with <kbd>Enter</kbd> (resolves GitHub Issue #1).
+* **Cross-Input Form Redraw Consistency:** Applied pre-render focus release across task addition, task inline editing, category renaming, and tag renaming.
+* **Scorecard Pristine:** Zero regressions, zero inline style additions, zero DOM lint flags.
+
+
 
 
 

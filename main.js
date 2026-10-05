@@ -690,8 +690,9 @@ ${taskList}
       const n = nameInput.value.trim();
       if (!n)
         return;
-      this.addCategory(n);
       nameInput.value = "";
+      nameInput.blur();
+      this.addCategory(n);
       dropdown.addClass("is-hidden");
       dropdown.removeClass("is-visible");
     };
@@ -776,7 +777,13 @@ ${taskList}
       const text = textInput.value.trim();
       if (!text)
         return;
-      this.addTask(cat.id, text, parseFloat(hoursInput.value) || 0.5, dateInput.value || void 0);
+      const hours = parseFloat(hoursInput.value) || 0.5;
+      const due = dateInput.value || void 0;
+      textInput.value = "";
+      hoursInput.value = "";
+      dateInput.value = "";
+      textInput.blur();
+      this.addTask(cat.id, text, hours, due);
     };
     addBtn.onclick = submit;
     textInput.addEventListener("keydown", (e) => {
@@ -822,6 +829,7 @@ ${taskList}
         input.select();
         const saveRename = () => {
           const n = input.value.trim();
+          input.blur();
           if (n && n !== cat.name)
             this.renameCategory(cat.id, n);
           else
@@ -852,6 +860,7 @@ ${taskList}
         input.select();
         const confirmTag = () => {
           const n = input.value.trim();
+          input.blur();
           if (n)
             this.renameTag(cat.id, n);
           else
@@ -1019,8 +1028,11 @@ ${taskList}
       const newText = textInput.value.trim();
       if (!newText)
         return;
-      this.editTask(task.id, newText, parseFloat(hoursInput.value) || task.estimatedHours, dateInput.value || void 0);
+      const hours = parseFloat(hoursInput.value) || task.estimatedHours;
+      const due = dateInput.value || void 0;
+      textInput.blur();
       form.remove();
+      this.editTask(task.id, newText, hours, due);
     };
     textInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter")

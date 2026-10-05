@@ -685,8 +685,9 @@ class TodoView extends ItemView {
 		addBtn.onclick = () => {
 			const n = nameInput.value.trim();
 			if (!n) return;
-			this.addCategory(n);
 			nameInput.value = '';
+			nameInput.blur();
+			this.addCategory(n);
 			dropdown.addClass('is-hidden');
 			dropdown.removeClass('is-visible');
 		};
@@ -752,8 +753,13 @@ class TodoView extends ItemView {
 		const submit = () => {
 			const text = textInput.value.trim();
 			if (!text) return;
-			// dateInput.value is already ISO format yyyy-mm-dd from native date picker
-			this.addTask(cat.id, text, parseFloat(hoursInput.value) || 0.5, dateInput.value || undefined);
+			const hours = parseFloat(hoursInput.value) || 0.5;
+			const due = dateInput.value || undefined;
+			textInput.value = '';
+			hoursInput.value = '';
+			dateInput.value = '';
+			textInput.blur();
+			this.addTask(cat.id, text, hours, due);
 		};
 		addBtn.onclick = submit;
 		textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
@@ -803,7 +809,7 @@ class TodoView extends ItemView {
 					if (!nameEl) return;
 					const input = createEl('input', { cls: 'cat-rename-input', value: cat.name });
 					nameEl.replaceWith(input); input.focus(); input.select();
-					const saveRename = () => { const n = input.value.trim(); if (n && n !== cat.name) this.renameCategory(cat.id, n); else this.render(); };
+					const saveRename = () => { const n = input.value.trim(); input.blur(); if (n && n !== cat.name) this.renameCategory(cat.id, n); else this.render(); };
 					input.addEventListener('blur', saveRename);
 					input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') saveRename(); if (ev.key === 'Escape') this.render(); });
 				});
@@ -828,6 +834,7 @@ class TodoView extends ItemView {
 					input.focus(); input.select();
 					const confirmTag = () => {
 						const n = input.value.trim();
+						input.blur();
 						if (n) this.renameTag(cat.id, n);
 						else this.render();
 					};
@@ -1008,8 +1015,11 @@ class TodoView extends ItemView {
 		saveBtn.onclick = () => {
 			const newText = textInput.value.trim();
 			if (!newText) return;
-			this.editTask(task.id, newText, parseFloat(hoursInput.value) || task.estimatedHours, dateInput.value || undefined);
+			const hours = parseFloat(hoursInput.value) || task.estimatedHours;
+			const due = dateInput.value || undefined;
+			textInput.blur();
 			form.remove();
+			this.editTask(task.id, newText, hours, due);
 		};
 		textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveBtn.click(); if (e.key === 'Escape') cancelBtn.click(); });
 
