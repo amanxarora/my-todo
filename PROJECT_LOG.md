@@ -155,6 +155,16 @@ To appear in the official in-app Obsidian Community Plugins browser:
 * **Floating Promise Resolution (`no-floating-promises`):** Prefixed asynchronous `createCategoryNote()` call with `void` operator.
 * **Design & Functional Parity:** Visual design, behavior, and UI layouts remain fully preserved with zero regression.
 
+---
+
+## 12. Version 1.2.6 Native Obsidian Menu Migration
+
+* **Native Menu Adoption (`showTaskMenu` & `showCategoryMenu`):** Replaced custom DOM dropdown divs with Obsidian's native `new Menu()` API across task rows and category boards.
+* **Containment & Positioning Fix:** Resolved issue where custom `position: fixed` dropdowns were clipped or mispositioned due to CSS containment in Obsidian workspace leaves.
+* **Full Mobile & Desktop Alignment:** Native menus support touch gestures, keyboard navigation, and automatic viewport boundary clamping.
+* **Scorecard Safety:** Uses official `Menu` API (available since v0.11.0), zero inline styles, zero DOM creation warnings, and zero floating promises.
+
+
 
 
 

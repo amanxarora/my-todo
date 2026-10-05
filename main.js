@@ -725,8 +725,7 @@ ${taskList}
     const menuBtn = catHdr.createEl("button", { cls: "cat-menu-btn", text: "\u22EF" });
     menuBtn.onclick = (e) => {
       e.stopPropagation();
-      this.closeActiveMenu();
-      this.showCategoryMenu(block, cat);
+      this.showCategoryMenu(block, cat, e);
     };
     const active = cat.tasks.filter((t) => !t.completed);
     const done = cat.tasks.filter((t) => t.completed);
@@ -786,124 +785,107 @@ ${taskList}
     });
   }
   showCategoryMenu(block, cat, e) {
-    const menu = block.createDiv("cat-dropdown");
-    if (e) {
-      const rect = block.getBoundingClientRect();
-      menu.addClass("context-positioned");
-      menu.setCssProps({
-        "--menu-top": e.clientY - rect.top + "px",
-        "--menu-left": e.clientX - rect.left + "px"
-      });
-    }
-    this.activeMenu = menu;
+    const menu = new import_obsidian.Menu();
     if (this.plugin.settings.sortOrder === "manual") {
-      const up = menu.createDiv("cat-dropdown-item");
-      up.setText("\u2191 Move up");
-      up.onclick = () => {
-        this.closeActiveMenu();
-        this.moveCategoryUp(cat.id);
-      };
-      const down = menu.createDiv("cat-dropdown-item");
-      down.setText("\u2193 Move down");
-      down.onclick = () => {
-        this.closeActiveMenu();
-        this.moveCategoryDown(cat.id);
-      };
-      menu.createDiv("cat-dropdown-divider");
+      menu.addItem((item) => {
+        item.setTitle("Move up").setIcon("arrow-up").onClick(() => {
+          this.moveCategoryUp(cat.id);
+        });
+      });
+      menu.addItem((item) => {
+        item.setTitle("Move down").setIcon("arrow-down").onClick(() => {
+          this.moveCategoryDown(cat.id);
+        });
+      });
+      menu.addSeparator();
     }
-    const pin = menu.createDiv("cat-dropdown-item");
-    pin.setText(cat.pinned ? "Unpin category" : "\u2B50 Pin to top");
-    pin.onclick = () => {
-      this.closeActiveMenu();
-      if (!cat.pinned && this.data.categories.filter((c) => c.pinned).length >= 2) {
-        new import_obsidian.Notice("You can only pin up to 2 categories!");
-        return;
-      }
-      cat.pinned = !cat.pinned;
-      this.save();
-      this.render();
-    };
-    menu.createDiv("cat-dropdown-divider");
-    const rename = menu.createDiv("cat-dropdown-item");
-    rename.setText("\u270E Rename");
-    rename.onclick = () => {
-      this.closeActiveMenu();
-      const nameEl = block.querySelector(".category-name");
-      if (!nameEl)
-        return;
-      const input = createEl("input", { cls: "cat-rename-input", value: cat.name });
-      nameEl.replaceWith(input);
-      input.focus();
-      input.select();
-      const saveRename = () => {
-        const n = input.value.trim();
-        if (n && n !== cat.name)
-          this.renameCategory(cat.id, n);
-        else
-          this.render();
-      };
-      input.addEventListener("blur", saveRename);
-      input.addEventListener("keydown", (e2) => {
-        if (e2.key === "Enter")
-          saveRename();
-        if (e2.key === "Escape")
-          this.render();
+    menu.addItem((item) => {
+      item.setTitle(cat.pinned ? "Unpin category" : "Pin to top").setIcon(cat.pinned ? "pin-off" : "pin").onClick(() => {
+        if (!cat.pinned && this.data.categories.filter((c) => c.pinned).length >= 2) {
+          new import_obsidian.Notice("You can only pin up to 2 categories!");
+          return;
+        }
+        cat.pinned = !cat.pinned;
+        this.save();
+        this.render();
       });
-    };
-    const createNote = menu.createDiv("cat-dropdown-item");
-    createNote.setText("\u{1F4DD} Create note");
-    createNote.onclick = () => {
-      this.closeActiveMenu();
-      void this.createCategoryNote(cat);
-    };
-    const renameTag = menu.createDiv("cat-dropdown-item");
-    renameTag.setText("\u{1F3F7} Rename tag");
-    renameTag.onclick = () => {
-      this.closeActiveMenu();
-      const tagEl = block.querySelector(".category-tag");
-      if (!tagEl)
-        return;
-      const input = createEl("input", { cls: "cat-rename-input cat-tag-rename-input", value: catTag(cat.name, cat.customTag) });
-      tagEl.replaceWith(input);
-      input.focus();
-      input.select();
-      const confirmTag = () => {
-        const n = input.value.trim();
-        if (n)
-          this.renameTag(cat.id, n);
-        else
-          this.render();
-      };
-      input.addEventListener("blur", confirmTag);
-      input.addEventListener("keydown", (e2) => {
-        if (e2.key === "Enter")
-          confirmTag();
-        if (e2.key === "Escape")
-          this.render();
-      });
-    };
-    menu.createDiv("cat-dropdown-divider");
-    const colorLabel = menu.createDiv("cat-dropdown-item no-hover");
-    colorLabel.setText("\u25CF Color");
-    const swatches = menu.createDiv("color-swatches");
-    CATEGORY_COLORS.forEach((c) => {
-      const sw = swatches.createDiv("color-swatch");
-      sw.setCssStyles({ background: c.value || "#555555" });
-      if (cat.color === c.value)
-        sw.addClass("active");
-      sw.title = c.label;
-      sw.onclick = () => {
-        this.closeActiveMenu();
-        this.setCategoryColor(cat.id, c.value);
-      };
     });
-    menu.createDiv("cat-dropdown-divider");
-    const del = menu.createDiv("cat-dropdown-item danger");
-    del.setText("\u2715 Delete");
-    del.onclick = () => {
-      this.closeActiveMenu();
-      new ConfirmModal(this.plugin.app, `Delete "${cat.name}" and all its tasks?`, () => this.deleteCategory(cat.id)).open();
-    };
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setTitle("Rename").setIcon("pencil").onClick(() => {
+        const nameEl = block.querySelector(".category-name");
+        if (!nameEl)
+          return;
+        const input = createEl("input", { cls: "cat-rename-input", value: cat.name });
+        nameEl.replaceWith(input);
+        input.focus();
+        input.select();
+        const saveRename = () => {
+          const n = input.value.trim();
+          if (n && n !== cat.name)
+            this.renameCategory(cat.id, n);
+          else
+            this.render();
+        };
+        input.addEventListener("blur", saveRename);
+        input.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter")
+            saveRename();
+          if (ev.key === "Escape")
+            this.render();
+        });
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle("Create note").setIcon("file-plus").onClick(() => {
+        void this.createCategoryNote(cat);
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle("Rename tag").setIcon("tag").onClick(() => {
+        const tagEl = block.querySelector(".category-tag");
+        if (!tagEl)
+          return;
+        const input = createEl("input", { cls: "cat-rename-input cat-tag-rename-input", value: catTag(cat.name, cat.customTag) });
+        tagEl.replaceWith(input);
+        input.focus();
+        input.select();
+        const confirmTag = () => {
+          const n = input.value.trim();
+          if (n)
+            this.renameTag(cat.id, n);
+          else
+            this.render();
+        };
+        input.addEventListener("blur", confirmTag);
+        input.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter")
+            confirmTag();
+          if (ev.key === "Escape")
+            this.render();
+        });
+      });
+    });
+    menu.addSeparator();
+    CATEGORY_COLORS.forEach((c) => {
+      menu.addItem((item) => {
+        item.setTitle(`Color: ${c.label}${cat.color === c.value ? " \u2713" : ""}`).setIcon("palette").onClick(() => {
+          this.setCategoryColor(cat.id, c.value);
+        });
+      });
+    });
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setTitle("Delete").setIcon("trash").onClick(() => {
+        new ConfirmModal(this.plugin.app, `Delete "${cat.name}" and all its tasks?`, () => this.deleteCategory(cat.id)).open();
+      });
+    });
+    if (e) {
+      menu.showAtMouseEvent(e);
+    } else {
+      const rect = block.getBoundingClientRect();
+      menu.showAtPosition({ x: rect.right - 10, y: rect.top + 30 });
+    }
   }
   renderTaskRow(container, task, context) {
     const overdue = this.getOverdueStatus(task);
@@ -987,39 +969,29 @@ ${taskList}
     };
   }
   showTaskMenu(row, task, context, e) {
-    const menu = this.containerEl.createDiv("task-dropdown");
-    if (e) {
-      menu.setCssProps({
-        "--menu-top": Math.min(e.clientY, window.innerHeight - 160) + "px",
-        "--menu-left": Math.min(e.clientX, window.innerWidth - 160) + "px"
+    const menu = new import_obsidian.Menu();
+    menu.addItem((item) => {
+      item.setTitle("Edit").setIcon("pencil").onClick(() => {
+        this.showTaskEditForm(row, task);
       });
+    });
+    menu.addItem((item) => {
+      item.setTitle(task.completed ? "Mark incomplete" : "Mark complete").setIcon(task.completed ? "undo" : "check").onClick(() => {
+        this.toggleComplete(task.id);
+      });
+    });
+    menu.addSeparator();
+    menu.addItem((item) => {
+      item.setTitle("Delete").setIcon("trash").onClick(() => {
+        this.deleteTask(task.id);
+      });
+    });
+    if (e) {
+      menu.showAtMouseEvent(e);
     } else {
       const rect = row.getBoundingClientRect();
-      menu.setCssProps({
-        "--menu-top": Math.min(rect.bottom, window.innerHeight - 160) + "px",
-        "--menu-left": Math.min(rect.right - 150, window.innerWidth - 160) + "px"
-      });
+      menu.showAtPosition({ x: rect.right - 10, y: rect.bottom });
     }
-    this.activeMenu = menu;
-    const editItem = menu.createDiv("task-dropdown-item");
-    editItem.setText("\u270E Edit");
-    editItem.onclick = () => {
-      this.closeActiveMenu();
-      this.showTaskEditForm(row, task);
-    };
-    const completeItem = menu.createDiv("task-dropdown-item");
-    completeItem.setText(task.completed ? "\u21A9 Mark incomplete" : "\u2713 Mark complete");
-    completeItem.onclick = () => {
-      this.closeActiveMenu();
-      this.toggleComplete(task.id);
-    };
-    menu.createDiv("cat-dropdown-divider");
-    const delItem = menu.createDiv("task-dropdown-item danger");
-    delItem.setText("\u2715 Delete");
-    delItem.onclick = () => {
-      this.closeActiveMenu();
-      this.deleteTask(task.id);
-    };
   }
   showTaskEditForm(row, task) {
     if (row.nextElementSibling?.classList.contains("task-edit-form"))
